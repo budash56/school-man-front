@@ -1,0 +1,353 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  IconButton,
+  Paper,
+  Stack,
+  Typography,
+} from '@mui/material'
+import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
+import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
+import { useClassGroupsQuery } from '../classGroups/useClassGroupsQuery'
+import { useStudentsByClassGroup } from '../schoolYears/useStudentsByClassGroup'
+import { useStudentDiscipline } from '../students/useStudentDiscipline'
+
+const getGroupLabel = (
+  group?: { code?: string; gradeLevel?: number; section?: string },
+  fallback?: number,
+) => {
+  if (!group) {
+    return fallback ? String(fallback) : 'Grupo'
+  }
+  if (group.code) {
+    return group.code
+  }
+  if (group.gradeLevel !== undefined && group.section) {
+    return `${group.gradeLevel}° ${group.section}`
+  }
+  return group.section ?? (fallback ? `Grupo ${fallback}` : 'Grupo')
+}
+
+export const DisciplinePage = () => {
+  const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('')
+  const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
+  const [currentStudentIndex, setCurrentStudentIndex] = useState(0)
+
+  const {
+    data: schoolYears,
+    isLoading: isLoadingYears,
+    isError: isYearError,
+    error: yearError,
+  } = useSchoolYearsQuery({})
+
+  useEffect(() => {
+    if (!selectedSchoolYearId && schoolYears && schoolYears.length > 0) {
+      setSelectedSchoolYearId(String(schoolYears[0].schoolYearId))
+    }
+  }, [selectedSchoolYearId, schoolYears])
+
+  useEffect(() => {
+    setSelectedClassGroupId('')
+    setCurrentStudentIndex(0)
+  }, [selectedSchoolYearId])
+
+  const schoolYearId = selectedSchoolYearId ? Number(selectedSchoolYearId) || undefined : undefined
+  const classGroupId = selectedClassGroupId ? Number(selectedClassGroupId) || undefined : undefined
+
+  const classGroupQueryParams = useMemo(
+    () => ({
+      schoolYearId,
+      page: 1,
+      pageSize: 100,
+    }),
+    [schoolYearId],
+  )
+
+  const {
+    data: classGroups,
+    isLoading: isLoadingClassGroups,
+    isError: isClassGroupError,
+    error: classGroupError,
+  } = useClassGroupsQuery(classGroupQueryParams)
+
+  const groupsByGrade = classGroups
+    ? classGroups.data.reduce<Record<string, typeof classGroups.data>>((acc, group) => {
+        if (!acc[group.gradeLevel]) {
+          acc[group.gradeLevel] = []
+        }
+        acc[group.gradeLevel].push(group)
+        return acc
+      }, {})
+    : {}
+
+  const selectedGroup = classGroupId && classGroups
+    ? classGroups.data.find((group) => group.classGroupId === classGroupId)
+    : undefined
+
+  const {
+    data: students,
+    isLoading: isLoadingStudents,
+    isError: isStudentsError,
+    error: studentsError,
+  } = useStudentsByClassGroup(schoolYearId, classGroupId)
+
+  useEffect(() => {
+    setCurrentStudentIndex(0)
+  }, [classGroupId])
+
+  useEffect(() => {
+    if (!students || students.length === 0) {
+      setCurrentStudentIndex(0)
+      return
+    }
+    setCurrentStudentIndex((prev) => {
+      if (prev >= students.length) {
+        return students.length - 1
+      }
+      return prev
+    })
+  }, [students])
+
+  const currentStudent = students && students.length > 0 ? students[currentStudentIndex] : undefined
+
+  const {
+    data: disciplineRecords,
+    isLoading: isLoadingDiscipline,
+    isError: isDisciplineError,
+    error: disciplineError,
+  } = useStudentDiscipline(currentStudent?.studentId)
+
+  const recordList = disciplineRecords?.data ?? []
+
+  const categoryCounts = useMemo(() => {
+    return recordList.reduce(
+      (acc, record) => {
+        acc[record.category] = (acc[record.category] || 0) + 1
+        return acc
+      },
+      { green: 0, yellow: 0, red: 0, last_notice: 0 } as Record<string, number>,
+    )
+  }, [recordList])
+
+  const showDisciplineBook = Boolean(classGroupId)
+
+  return (
+    <Box display="flex" flexDirection="column" gap={2}>
+      <Typography variant="h5">Discipline</Typography>
+      <Typography variant="body2" color="text.secondary">
+        Explora los registros disciplinarios por grado y grupo. Selecciona un estudiante para revisar su historial.
+      </Typography>
+
+      {isLoadingYears && !schoolYears ? (
+        <Box display="flex" justifyContent="center" mt={2}>
+          <CircularProgress />
+        </Box>
+      ) : null}
+
+      {isYearError ? (
+        <Alert severity="error">{yearError?.message || 'Error cargando años escolares.'}</Alert>
+      ) : null}
+
+      {schoolYears && schoolYears.length === 0 && !isLoadingYears ? (
+        <Alert severity="info">No hay años escolares registrados.</Alert>
+      ) : null}
+
+      {schoolYears && schoolYears.length > 0 ? (
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="subtitle1" gutterBottom>
+            Años escolares disponibles
+          </Typography>
+          <Stack direction="row" flexWrap="wrap" gap={1}>
+            {schoolYears.map((year) => (
+              <Chip
+                key={year.schoolYearId}
+                label={year.name}
+                clickable
+                color={String(year.schoolYearId) === selectedSchoolYearId ? 'primary' : 'default'}
+                variant={String(year.schoolYearId) === selectedSchoolYearId ? 'filled' : 'outlined'}
+                onClick={() => {
+                  setSelectedSchoolYearId(String(year.schoolYearId))
+                }}
+              />
+            ))}
+          </Stack>
+        </Paper>
+      ) : null}
+
+      <Paper sx={{ p: 2 }}>
+        {!selectedSchoolYearId ? (
+          <Alert severity="info">Selecciona un año escolar para ver los grupos.</Alert>
+        ) : !showDisciplineBook ? (
+          <>
+            <Typography variant="subtitle1" gutterBottom>
+              Grupos de aula
+            </Typography>
+            {isLoadingClassGroups ? (
+              <Box display="flex" justifyContent="center" py={2}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : null}
+            {isClassGroupError ? (
+              <Alert severity="error">{classGroupError?.message || 'Error cargando grupos.'}</Alert>
+            ) : null}
+            {classGroups && classGroups.data.length === 0 && !isLoadingClassGroups ? (
+              <Alert severity="info">No hay grupos registrados para este año escolar.</Alert>
+            ) : null}
+            {classGroups && classGroups.data.length > 0 ? (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gap: 2,
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, minmax(0, 1fr))',
+                    md: 'repeat(3, minmax(0, 1fr))',
+                  },
+                }}
+              >
+                {Object.entries(groupsByGrade).map(([gradeLevelKey, groups]) => (
+                  <Paper key={gradeLevelKey} variant="outlined" sx={{ p: 2 }}>
+                    <Stack spacing={1.5}>
+                      <Typography variant="h6">Grado {gradeLevelKey}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Selecciona un grupo para abrir el libro disciplinario
+                      </Typography>
+                      <Stack direction="row" flexWrap="wrap" gap={1}>
+                        {groups.map((group) => (
+                          <Chip
+                            key={group.classGroupId}
+                            label={getGroupLabel(group)}
+                            clickable
+                            onClick={() => {
+                              setSelectedClassGroupId(String(group.classGroupId))
+                              setCurrentStudentIndex(0)
+                            }}
+                          />
+                        ))}
+                      </Stack>
+                    </Stack>
+                  </Paper>
+                ))}
+              </Box>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {isLoadingStudents ? (
+              <Box display="flex" justifyContent="center" py={2}>
+                <CircularProgress />
+              </Box>
+            ) : null}
+            {isStudentsError ? (
+              <Alert severity="error">{studentsError?.message || 'Error cargando estudiantes del grupo.'}</Alert>
+            ) : null}
+            {students && students.length === 0 && !isLoadingStudents ? (
+              <Alert severity="info">No hay estudiantes matriculados en este grupo.</Alert>
+            ) : null}
+            {students && students.length > 0 && currentStudent ? (
+              <Stack spacing={2}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                  <IconButton
+                    onClick={() => setCurrentStudentIndex((prev) => Math.max(prev - 1, 0))}
+                    disabled={currentStudentIndex === 0}
+                    aria-label="Anterior"
+                  >
+                    <ArrowBackIosNewIcon fontSize="small" />
+                  </IconButton>
+                  <Typography variant="subtitle1" textAlign="center">
+                    Libro disciplinario · {getGroupLabel(selectedGroup, classGroupId)}
+                  </Typography>
+                  <IconButton
+                    onClick={() => setCurrentStudentIndex((prev) => Math.min(prev + 1, students.length - 1))}
+                    disabled={currentStudentIndex === students.length - 1}
+                    aria-label="Siguiente"
+                  >
+                    <ArrowForwardIosIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={1}>
+                    <Typography variant="h6">
+                      {currentStudent.firstName} {currentStudent.lastName}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Documento: {currentStudent.nationalId || 'N/A'} · Fecha de nacimiento: {currentStudent.dob || 'N/A'} · Grupo: {getGroupLabel(selectedGroup, classGroupId)}
+                    </Typography>
+                  </Stack>
+                </Paper>
+
+                <Stack direction="row" flexWrap="wrap" gap={1}>
+                  <Chip label={`Green: ${categoryCounts.green || 0}`} color="success" variant="outlined" />
+                  <Chip label={`Yellow: ${categoryCounts.yellow || 0}`} color="warning" variant="outlined" />
+                  <Chip label={`Red: ${categoryCounts.red || 0}`} color="error" variant="outlined" />
+                  <Chip label={`Last notice: ${categoryCounts.last_notice || 0}`} variant="outlined" />
+                </Stack>
+
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">Registros</Typography>
+                  {isLoadingDiscipline ? (
+                    <Box display="flex" justifyContent="center" py={2}>
+                      <CircularProgress size={24} />
+                    </Box>
+                  ) : null}
+                  {isDisciplineError ? (
+                    <Alert severity="error">{disciplineError?.message || 'Error cargando registros disciplinarios.'}</Alert>
+                  ) : null}
+                  {!isLoadingDiscipline && recordList.length === 0 ? (
+                    <Alert severity="info">Sin registros para este estudiante.</Alert>
+                  ) : null}
+                  {recordList.map((record) => (
+                    <Paper key={record.disciplinaryId} variant="outlined" sx={{ p: 1.5 }}>
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(record.dateHappened).toLocaleDateString('es-CO')} · {record.category}
+                        </Typography>
+                        <Typography variant="body2">{record.description || 'Sin descripción'}</Typography>
+                      </Stack>
+                    </Paper>
+                  ))}
+                </Stack>
+
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">Reconocimientos</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Awards: (TODO – wire awards endpoint when available)
+                  </Typography>
+                </Stack>
+
+                <Stack direction="row" spacing={2}>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      // TODO: open form to add new disciplinary record
+                    }}
+                  >
+                    Agregar
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={() => {
+                      // TODO: open form to edit disciplinary records
+                    }}
+                  >
+                    Editar
+                  </Button>
+                  <Box flexGrow={1} />
+                  <Button variant="text" onClick={() => setSelectedClassGroupId('')}>
+                    Volver a grupos
+                  </Button>
+                </Stack>
+              </Stack>
+            ) : null}
+          </>
+        )}
+      </Paper>
+    </Box>
+  )
+}
