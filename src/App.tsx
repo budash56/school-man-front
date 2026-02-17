@@ -14,6 +14,7 @@ import ProfessorsPage from './features/professors/ProfessorsPage'
 import SubjectsPage from './features/subjects/SubjectsPage'
 import ClassroomsPage from './features/classrooms/ClassroomsPage'
 import TimetableGeneratorPage from './features/timetable/TimetableGeneratorPage'
+import CurriculumPage from './features/curriculum/CurriculumPage'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="enrollments" element={<EnrollmentsPage />} />
           <Route path="enrollments/new" element={<EnrollmentWizardPage />} />
+          <Route path="curriculum" element={<CurriculumPage />} />
           <Route path="class-groups" element={<SchoolYearsStaticPage />} />
           <Route path="discipline" element={<DisciplinePage />} />
           <Route path="professors" element={<ProfessorsPage />} />
