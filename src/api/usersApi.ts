@@ -1,11 +1,11 @@
 import { apiClient } from './apiClient'
 import { type PaginatedResult } from '../types/pagination'
-import { type AuthResponse } from './authApi'
+import { type AuthResponse, type Role } from './authApi'
 
-export type Professor = {
+export type User = {
   nationalId: string
   username: string
-  role: 'admin' | 'coordinator' | 'registrar' | 'teacher'
+  role: Role
   firstName: string | null
   lastName: string | null
   email: string | null
@@ -13,15 +13,18 @@ export type Professor = {
   isActive: boolean | null
 }
 
-export type ProfessorsQuery = {
+export type UsersQuery = {
   q?: string
+  role?: Role
+  isActive?: boolean
   page?: number
   pageSize?: number
 }
 
-export type CreateProfessorPayload = {
+export type CreateUserPayload = {
   nationalId: string
   password: string
+  role: Role
   username?: string
   firstName?: string
   lastName?: string
@@ -29,24 +32,22 @@ export type CreateProfessorPayload = {
   phone?: string
 }
 
-export const professorsApi = {
-  list(params: ProfessorsQuery = {}) {
-    return apiClient.get<PaginatedResult<Professor>>('/users', {
+export const usersApi = {
+  list(params: UsersQuery = {}) {
+    return apiClient.get<PaginatedResult<User>>('/users', {
       query: {
-        role: 'teacher',
         q: params.q,
+        role: params.role,
+        isActive: params.isActive,
         page: params.page,
         pageSize: params.pageSize,
       },
     })
   },
   getById(nationalId: string) {
-    return apiClient.get<Professor>(`/users/${nationalId}`)
+    return apiClient.get<User>(`/users/${nationalId}`)
   },
-  create(payload: CreateProfessorPayload) {
-    return apiClient.post<AuthResponse>('/auth/signup', {
-      ...payload,
-      role: 'teacher',
-    })
+  create(payload: CreateUserPayload) {
+    return apiClient.post<AuthResponse>('/auth/signup', payload)
   },
 }

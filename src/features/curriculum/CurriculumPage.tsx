@@ -33,20 +33,36 @@ import {
 } from '@mui/material'
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { curriculumItemsApi } from '../../api/curriculumItemsApi'
 import { curriculaApi, type CreateCurriculumItemPayload } from '../../api/curriculaApi'
 import { subjectsApi, type Subject } from '../../api/subjectsApi'
 import { useAuth } from '../auth/AuthContext'
 
 const gradeLevels = Array.from({ length: 11 }, (_, index) => index + 1)
 
+type EditableCurriculumItem = {
+  curriculumItemId: number
+  subjectId: number
+  subjectName: string
+  weeklyHours: number
+  doubleSessionRequired: boolean
+  notes: string
+}
+
 export const CurriculumPage = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const [selectedGrade, setSelectedGrade] = useState<number>(10)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isEditOpen, setIsEditOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [draftActive, setDraftActive] = useState(true)
   const [draftItems, setDraftItems] = useState<CreateCurriculumItemPayload[]>([])
+  const [editItems, setEditItems] = useState<EditableCurriculumItem[]>([])
+  const [editNewItems, setEditNewItems] = useState<CreateCurriculumItemPayload[]>([])
+  const [removedItemIds, setRemovedItemIds] = useState<number[]>([])
+  const [editError, setEditError] = useState('')
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
 
   const { data: curricula, isLoading, isError, error } = useQuery({
     queryKey: ['curricula'],
@@ -55,7 +71,7 @@ export const CurriculumPage = () => {
 
   const { data: subjectsResult, isLoading: isLoadingSubjects } = useQuery({
     queryKey: ['subjects', 'all'],
-    queryFn: () => subjectsApi.list({ pageSize: 500 }),
+    queryFn: () => subjectsApi.list({ pageSize: 100 }),
   })
 
   const subjects = subjectsResult?.data ?? []
@@ -64,6 +80,13 @@ export const CurriculumPage = () => {
     () => curricula?.find((item) => item.gradeLevel === selectedGrade) ?? null,
     [curricula, selectedGrade],
   )
+
+  const selectedTotalHours = useMemo(() => {
+    if (!selectedCurriculum?.items?.length) {
+      return 0
+    }
+    return selectedCurriculum.items.reduce((total, item) => total + (item.weeklyHours ?? 0), 0)
+  }, [selectedCurriculum])
 
   const createMutation = useMutation({
     mutationFn: curriculaApi.create,
@@ -78,6 +101,26 @@ export const CurriculumPage = () => {
     setDraftActive(true)
     setDraftItems([])
     setIsDialogOpen(true)
+  }
+
+  const handleOpenEdit = () => {
+    if (!selectedCurriculum) {
+      return
+    }
+    setEditItems(
+      selectedCurriculum.items.map((item) => ({
+        curriculumItemId: item.curriculumItemId,
+        subjectId: item.subjectId,
+        subjectName: item.subject?.name ?? `Asignatura ${item.subjectId}`,
+        weeklyHours: item.weeklyHours,
+        doubleSessionRequired: item.doubleSessionRequired,
+        notes: item.notes ?? '',
+      })),
+    )
+    setEditNewItems([])
+    setRemovedItemIds([])
+    setEditError('')
+    setIsEditOpen(true)
   }
 
   const handleAddItem = () => {
@@ -109,6 +152,129 @@ export const CurriculumPage = () => {
         itemIndex === index ? { ...item, ...patch } : item,
       ),
     )
+  }
+
+  const handleAddEditItem = () => {
+    if (!selectedCurriculum || subjects.length === 0) {
+      return
+    }
+    const selectedIds = new Set([
+      ...editItems.map((item) => item.subjectId),
+      ...editNewItems.map((item) => item.subjectId),
+    ])
+    const nextSubject = subjects.find((subject) => !selectedIds.has(subject.subjectId))
+    if (!nextSubject) {
+      return
+    }
+    setEditNewItems((prev) => [
+      ...prev,
+      {
+        subjectId: nextSubject.subjectId,
+        weeklyHours: 0,
+        doubleSessionRequired: false,
+        notes: '',
+      },
+    ])
+  }
+
+  const handleEditNewItemUpdate = (
+    index: number,
+    patch: Partial<CreateCurriculumItemPayload>,
+  ) => {
+    setEditNewItems((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...patch } : item,
+      ),
+    )
+  }
+
+  const handleEditNewItemRemove = (index: number) => {
+    setEditNewItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  const handleEditHoursChange = (curriculumItemId: number, value: number) => {
+    const nextValue = Number.isFinite(value) ? Math.max(0, value) : 0
+    setEditItems((prev) =>
+      prev.map((item) =>
+        item.curriculumItemId === curriculumItemId
+          ? { ...item, weeklyHours: nextValue }
+          : item,
+      ),
+    )
+  }
+
+  const handleEditRemove = (curriculumItemId: number) => {
+    setEditItems((prev) =>
+      prev.filter((item) => item.curriculumItemId !== curriculumItemId),
+    )
+    setRemovedItemIds((prev) =>
+      prev.includes(curriculumItemId) ? prev : [...prev, curriculumItemId],
+    )
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selectedCurriculum) {
+      return
+    }
+
+    const existingSubjectIds = new Set(editItems.map((item) => item.subjectId))
+    const newSubjectIds = editNewItems.map((item) => item.subjectId)
+    if (new Set(newSubjectIds).size !== newSubjectIds.length) {
+      setEditError('Hay asignaturas repetidas en las nuevas adiciones.')
+      return
+    }
+    if (newSubjectIds.some((id) => existingSubjectIds.has(id))) {
+      setEditError('Una o más asignaturas ya existen en el currículo.')
+      return
+    }
+
+    setIsSavingEdit(true)
+    setEditError('')
+    try {
+      const originalMap = new Map(
+        selectedCurriculum.items.map((item) => [item.curriculumItemId, item]),
+      )
+      const updateRequests = editItems
+        .map((item) => {
+          const original = originalMap.get(item.curriculumItemId)
+          if (!original) {
+            return null
+          }
+          if (item.weeklyHours !== original.weeklyHours) {
+            return curriculumItemsApi.update(item.curriculumItemId, {
+              weeklyHours: item.weeklyHours,
+            })
+          }
+          return null
+        })
+        .filter(Boolean) as Promise<unknown>[]
+
+      const deleteRequests = removedItemIds.map((id) => curriculumItemsApi.remove(id))
+
+      const createRequests = editNewItems.map((item) =>
+        curriculumItemsApi.create({
+          curriculumId: selectedCurriculum.curriculumId,
+          subjectId: item.subjectId,
+          weeklyHours: item.weeklyHours ?? 0,
+          doubleSessionRequired: item.doubleSessionRequired ?? false,
+          notes: item.notes?.trim() || undefined,
+        }),
+      )
+
+      await Promise.all([...updateRequests, ...deleteRequests])
+      await Promise.all(createRequests)
+      await queryClient.invalidateQueries({ queryKey: ['curricula'] })
+      setIsEditOpen(false)
+      setEditNewItems([])
+    } catch (error) {
+      setEditError(
+        error instanceof Error
+          ? error.message
+          : 'No se pudieron guardar los cambios del currículo.',
+      )
+    } finally {
+      setIsSavingEdit(false)
+    }
   }
 
   const handleCreate = () => {
@@ -195,9 +361,15 @@ export const CurriculumPage = () => {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             {user?.role === 'admin' ? (
-              <Button variant="contained" onClick={handleOpenDialog} startIcon={<AddIcon />}>
-                Crear currículo
-              </Button>
+              selectedCurriculum ? (
+                <Button variant="outlined" onClick={handleOpenEdit}>
+                  Editar currículo
+                </Button>
+              ) : (
+                <Button variant="contained" onClick={handleOpenDialog} startIcon={<AddIcon />}>
+                  Crear currículo
+                </Button>
+              )
             ) : null}
           </Stack>
 
@@ -215,7 +387,7 @@ export const CurriculumPage = () => {
                   label={selectedCurriculum.isActive ? 'Activo' : 'Inactivo'}
                 />
                 <Typography variant="body2" color="text.secondary">
-                  {selectedCurriculum.items?.length ?? 0} asignaturas
+                  {selectedCurriculum.items?.length ?? 0} asignaturas · {selectedTotalHours} horas/semana
                 </Typography>
               </Stack>
 
@@ -272,15 +444,6 @@ export const CurriculumPage = () => {
 
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1">Asignaturas</Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={handleAddItem}
-              disabled={subjects.length === 0}
-            >
-              Agregar asignatura
-            </Button>
           </Stack>
 
           {isLoadingSubjects ? (
@@ -376,8 +539,191 @@ export const CurriculumPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddItem}
+            disabled={subjects.length === 0}
+          >
+            Agregar asignatura
+          </Button>
           <Button variant="contained" onClick={handleCreate} disabled={!canCreate || createMutation.isPending}>
             Crear
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={isEditOpen} onClose={() => setIsEditOpen(false)} fullWidth maxWidth="md">
+        <DialogTitle>Editar currículo</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <TextField label="Grado" value={selectedGrade} disabled />
+          <Typography color="text.secondary">
+            Ajusta las horas por semana o elimina asignaturas del currículo.
+          </Typography>
+
+          <Divider />
+
+          {editItems.length === 0 ? (
+            <Alert severity="warning">
+              Este currículo no tiene asignaturas. Agrega asignaturas abajo.
+            </Alert>
+          ) : null}
+
+          <Stack spacing={2}>
+            {editItems.map((item) => (
+              <Paper key={item.curriculumItemId} variant="outlined" sx={{ p: 2 }}>
+                <Stack spacing={2}>
+                  <Typography variant="subtitle1">{item.subjectName}</Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                    <TextField
+                      label="Horas/semana"
+                      type="number"
+                      inputProps={{ min: 0 }}
+                      value={item.weeklyHours}
+                      onChange={(event) =>
+                        handleEditHoursChange(item.curriculumItemId, Number(event.target.value))
+                      }
+                      sx={{ maxWidth: 160 }}
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      Doble sesión: {item.doubleSessionRequired ? 'Sí' : 'No'}
+                    </Typography>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Button
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => handleEditRemove(item.curriculumItemId)}
+                    >
+                      Quitar
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+
+          <Divider />
+
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle1">Agregar asignaturas</Typography>
+          </Stack>
+
+          {editNewItems.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              No hay nuevas asignaturas pendientes.
+            </Typography>
+          ) : null}
+
+          <Stack spacing={2}>
+            {editNewItems.map((item, index) => {
+              const selectedIds = new Set(editNewItems.map((entry) => entry.subjectId))
+              const options = subjects.filter((subject) => {
+                if (subject.subjectId === item.subjectId) {
+                  return true
+                }
+                const existsInCurriculum = editItems.some(
+                  (existing) => existing.subjectId === subject.subjectId,
+                )
+                return !existsInCurriculum && !selectedIds.has(subject.subjectId)
+              })
+
+              return (
+                <Paper key={`${item.subjectId}-${index}`} variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={2}>
+                    <FormControl fullWidth>
+                      <InputLabel id={`edit-subject-label-${index}`}>Asignatura</InputLabel>
+                      <Select
+                        labelId={`edit-subject-label-${index}`}
+                        label="Asignatura"
+                        value={item.subjectId}
+                        onChange={(event) =>
+                          handleEditNewItemUpdate(index, {
+                            subjectId: Number(event.target.value),
+                          })
+                        }
+                      >
+                        {options.map((subject: Subject) => (
+                          <MenuItem key={subject.subjectId} value={subject.subjectId}>
+                            {subject.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <Stack
+                      direction={{ xs: 'column', sm: 'row' }}
+                      spacing={2}
+                      alignItems={{ xs: 'flex-start', sm: 'center' }}
+                    >
+                      <TextField
+                        label="Horas/semana"
+                        type="number"
+                        inputProps={{ min: 0 }}
+                        value={item.weeklyHours ?? 0}
+                        onChange={(event) =>
+                          handleEditNewItemUpdate(index, {
+                            weeklyHours: Number(event.target.value),
+                          })
+                        }
+                        sx={{ maxWidth: 160 }}
+                      />
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={Boolean(item.doubleSessionRequired)}
+                            onChange={(event) =>
+                              handleEditNewItemUpdate(index, {
+                                doubleSessionRequired: event.target.checked,
+                              })
+                            }
+                          />
+                        }
+                        label="Requiere doble sesión"
+                      />
+                      <Box sx={{ flexGrow: 1 }} />
+                      <Button
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => handleEditNewItemRemove(index)}
+                      >
+                        Quitar
+                      </Button>
+                    </Stack>
+
+                    <TextField
+                      label="Notas"
+                      value={item.notes ?? ''}
+                      onChange={(event) =>
+                        handleEditNewItemUpdate(index, { notes: event.target.value })
+                      }
+                    />
+                  </Stack>
+                </Paper>
+              )
+            })}
+          </Stack>
+
+          {editError ? <Alert severity="error">{editError}</Alert> : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsEditOpen(false)}>Cancelar</Button>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={handleAddEditItem}
+            disabled={
+              subjects.length === 0 ||
+              editItems.length + editNewItems.length >= subjects.length
+            }
+          >
+            Agregar asignatura
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEdit}
+            disabled={isSavingEdit}
+          >
+            Guardar cambios
           </Button>
         </DialogActions>
       </Dialog>

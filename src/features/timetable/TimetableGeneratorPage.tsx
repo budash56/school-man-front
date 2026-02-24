@@ -374,7 +374,7 @@ const TimetableGeneratorPage = () => {
 
   useEffect(() => {
     if (!divisionRange) {
-      setSelectedClassGroupIds([])
+      setSelectedClassGroupIds((prev) => (prev.length > 0 ? [] : prev))
       return
     }
     if (!hasInitializedGroups && classGroupsForDivision.length > 0) {

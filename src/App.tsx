@@ -10,11 +10,11 @@ import { EnrollmentsPage } from './features/enrollments/EnrollmentsPage'
 import EnrollmentWizardPage from './features/enrollments/EnrollmentWizardPage'
 import SchoolYearsStaticPage from './features/schoolYears/SchoolYearsStaticPage'
 import { DisciplinePage } from './features/discipline/DisciplinePage'
-import ProfessorsPage from './features/professors/ProfessorsPage'
 import SubjectsPage from './features/subjects/SubjectsPage'
 import ClassroomsPage from './features/classrooms/ClassroomsPage'
 import TimetableGeneratorPage from './features/timetable/TimetableGeneratorPage'
 import CurriculumPage from './features/curriculum/CurriculumPage'
+import UsersPage from './features/users/UsersPage'
 
 function App() {
   return (
@@ -30,10 +30,10 @@ function App() {
           <Route path="curriculum" element={<CurriculumPage />} />
           <Route path="class-groups" element={<SchoolYearsStaticPage />} />
           <Route path="discipline" element={<DisciplinePage />} />
-          <Route path="professors" element={<ProfessorsPage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="classrooms" element={<ClassroomsPage />} />
           <Route path="timetable-generator" element={<TimetableGeneratorPage />} />
+          <Route path="users" element={<UsersPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

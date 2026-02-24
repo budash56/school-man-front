@@ -22,4 +22,7 @@ export const schoolYearsApi = {
       },
     })
   },
+  rollover(payload: { startDate: string; endDate: string; name?: string }) {
+    return apiClient.post<{ previous: SchoolYear | null; current: SchoolYear }>('/school-years/rollover', payload)
+  },
 }

@@ -1,0 +1,669 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  InputLabel,
+  List,
+  ListItemButton,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { subjectAreasApi } from '../../api/subjectAreasApi'
+import { teacherSubjectsApi } from '../../api/teacherSubjectsApi'
+import { usersApi, type CreateUserPayload, type User } from '../../api/usersApi'
+import { useAuth } from '../auth/AuthContext'
+import { useLocation } from 'react-router-dom'
+import { subjectsApi } from '../../api/subjectsApi'
+import { coursesApi, type CourseSummary } from '../../api/coursesApi'
+
+const roles = [
+  { value: 'teacher', label: 'Profesor' },
+  { value: 'coordinator', label: 'Coordinador' },
+  { value: 'registrar', label: 'Registro' },
+] as const
+
+type RoleValue = (typeof roles)[number]['value']
+
+const emptyUser: CreateUserPayload = {
+  nationalId: '',
+  password: '',
+  role: 'teacher',
+  username: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+}
+
+const buildTempPassword = (lastName: string | undefined, nationalId: string | undefined) => {
+  const trimmedLastName = lastName?.trim() ?? ''
+  const firstLastName = trimmedLastName ? trimmedLastName.split(/\s+/)[0] : ''
+  const digits = (nationalId ?? '').replace(/\D/g, '')
+  if (!firstLastName || digits.length < 4) {
+    return ''
+  }
+  return `${firstLastName}${digits.slice(-4)}`
+}
+
+export const UsersPage = () => {
+  const { user } = useAuth()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+
+  const [search, setSearch] = useState('')
+  const [selectedRole, setSelectedRole] = useState<RoleValue>('teacher')
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [draftUser, setDraftUser] = useState<CreateUserPayload>(emptyUser)
+  const [selectedAreas, setSelectedAreas] = useState<number[]>([])
+  const [areaError, setAreaError] = useState('')
+  const [isAssignOpen, setIsAssignOpen] = useState(false)
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('')
+  const tempPassword = useMemo(
+    () => buildTempPassword(draftUser.lastName, draftUser.nationalId),
+    [draftUser.lastName, draftUser.nationalId],
+  )
+
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['users', selectedRole],
+    queryFn: () => usersApi.list({ role: selectedRole, page: 1, pageSize: 100 }),
+  })
+
+  const {
+    data: selectedUser,
+    isLoading: isLoadingSelectedUser,
+    isError: isSelectedUserError,
+    error: selectedUserError,
+  } = useQuery({
+    queryKey: ['user', selectedUserId],
+    queryFn: () => {
+      if (!selectedUserId) {
+        throw new Error('userId required')
+      }
+      return usersApi.getById(selectedUserId)
+    },
+    enabled: Boolean(selectedUserId),
+  })
+
+  const {
+    data: teacherSubjects,
+    isLoading: isLoadingTeacherSubjects,
+    isError: isTeacherSubjectsError,
+    error: teacherSubjectsError,
+  } = useQuery({
+    queryKey: ['teacher-subjects', selectedUserId],
+    queryFn: () => {
+      if (!selectedUserId) {
+        throw new Error('teacherId required')
+      }
+      return teacherSubjectsApi.list({ teacherId: selectedUserId })
+    },
+    enabled: Boolean(selectedUserId) && selectedUser?.role === 'teacher',
+  })
+
+  const { data: subjectsResult } = useQuery({
+    queryKey: ['subjects', 'all'],
+    queryFn: () => subjectsApi.list({ pageSize: 100 }),
+  })
+  const subjects = subjectsResult?.data ?? []
+
+  const {
+    data: courses,
+    isLoading: isLoadingCourses,
+    isError: isCoursesError,
+    error: coursesError,
+  } = useQuery({
+    queryKey: ['teacher-courses', selectedUserId],
+    queryFn: () => {
+      if (!selectedUserId) {
+        throw new Error('teacherId required')
+      }
+      const numericId = Number(selectedUserId)
+      if (!Number.isFinite(numericId)) {
+        return Promise.resolve([] as CourseSummary[])
+      }
+      return coursesApi.list({ teacherId: numericId })
+    },
+    enabled: Boolean(selectedUserId) && selectedUser?.role === 'teacher',
+  })
+
+  const assignedSubjectIds = useMemo(() => {
+    return new Set((teacherSubjects ?? []).map((item) => item.subjectId))
+  }, [teacherSubjects])
+
+  const availableSubjects = useMemo(() => {
+    return subjects.filter((subject) => !assignedSubjectIds.has(subject.subjectId))
+  }, [subjects, assignedSubjectIds])
+
+  const homerooms = useMemo(() => {
+    if (!courses) {
+      return []
+    }
+    const labels = new Set<string>()
+    courses.forEach((course) => {
+      labels.add(`${course.gradeLevel}° ${course.section}`)
+    })
+    return Array.from(labels)
+  }, [courses])
+
+  const {
+    data: areasResult,
+    isLoading: isLoadingAreas,
+    isError: isAreasError,
+    error: areasError,
+  } = useQuery({
+    queryKey: ['subject-areas', 'with-subjects'],
+    queryFn: () => subjectAreasApi.list({ pageSize: 100, includeSubjects: true }),
+  })
+
+  const areas = areasResult?.data ?? []
+
+  const filteredUsers = useMemo(() => {
+    const list = data?.data ?? []
+    if (!search.trim()) {
+      return list
+    }
+    const needle = search.trim().toLowerCase()
+    return list.filter((entry) => {
+      const fullName = `${entry.firstName ?? ''} ${entry.lastName ?? ''}`.toLowerCase()
+      return (
+        fullName.includes(needle) ||
+        entry.nationalId.toLowerCase().includes(needle) ||
+        entry.username.toLowerCase().includes(needle)
+      )
+    })
+  }, [data, search])
+
+  const createMutation = useMutation({
+    mutationFn: usersApi.create,
+    onSuccess: () => {
+      setIsCreateOpen(false)
+      setDraftUser(emptyUser)
+      setSelectedAreas([])
+      setAreaError('')
+      refetch()
+    },
+  })
+
+  const assignSubjectsMutation = useMutation({
+    mutationFn: async (payload: { teacherId: string; subjectIds: number[] }) => {
+      const unique = Array.from(new Set(payload.subjectIds))
+      await Promise.all(
+        unique.map((subjectId) =>
+          teacherSubjectsApi.create({ teacherId: payload.teacherId, subjectId }),
+        ),
+      )
+    },
+  })
+
+  const assignSubjectMutation = useMutation({
+    mutationFn: teacherSubjectsApi.create,
+    onSuccess: () => {
+      setIsAssignOpen(false)
+      setSelectedSubjectId('')
+      queryClient.invalidateQueries({ queryKey: ['teacher-subjects', selectedUserId] })
+    },
+  })
+
+  const removeSubjectMutation = useMutation({
+    mutationFn: teacherSubjectsApi.remove,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-subjects', selectedUserId] })
+    },
+  })
+
+  useEffect(() => {
+    const state = location.state as { userId?: string } | null
+    if (state?.userId) {
+      setSelectedUserId(state.userId)
+    }
+  }, [location.state])
+
+  if (user?.role !== 'admin') {
+    return (
+      <Alert severity="error">Solo los administradores pueden gestionar usuarios.</Alert>
+    )
+  }
+
+  const handleOpenCreate = () => {
+    setDraftUser({ ...emptyUser, role: selectedRole, password: '' })
+    setSelectedAreas([])
+    setAreaError('')
+    setIsCreateOpen(true)
+  }
+
+  const handleAreaChange = (value: number[]) => {
+    if (value.length > 3) {
+      setAreaError('Máximo 3 áreas por profesor')
+      return
+    }
+    setAreaError('')
+    setSelectedAreas(value)
+  }
+
+  const handleCreateUser = async () => {
+    if (
+      !draftUser.nationalId.trim() ||
+      !draftUser.firstName?.trim() ||
+      !draftUser.lastName?.trim() ||
+      !tempPassword
+    ) {
+      return
+    }
+
+    const payload: CreateUserPayload = {
+      nationalId: draftUser.nationalId.trim(),
+      password: tempPassword,
+      role: draftUser.role,
+      username: draftUser.username?.trim() || undefined,
+      firstName: draftUser.firstName?.trim() || undefined,
+      lastName: draftUser.lastName?.trim() || undefined,
+      email: draftUser.email?.trim() || undefined,
+      phone: draftUser.phone?.trim() || undefined,
+    }
+
+    await createMutation.mutateAsync(payload)
+
+    if (payload.role === 'teacher') {
+      const selectedAreaObjects = areas.filter((area) => selectedAreas.includes(area.areaId))
+      const subjectIds = selectedAreaObjects.flatMap((area) =>
+        (area.subjects ?? []).map((subject) => subject.subjectId),
+      )
+
+      if (subjectIds.length > 0) {
+        await assignSubjectsMutation.mutateAsync({
+          teacherId: payload.nationalId,
+          subjectIds,
+        })
+      }
+    }
+  }
+
+  const areaSelectionRequired = draftUser.role === 'teacher'
+  const areaIsValid = !areaSelectionRequired || selectedAreas.length > 0
+
+  if (selectedUserId) {
+    return (
+      <Box display="flex" flexDirection="column" gap={2}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Button variant="text" onClick={() => setSelectedUserId(null)}>
+            ← Volver
+          </Button>
+          <Typography variant="h5">Perfil de usuario</Typography>
+        </Stack>
+
+        {isLoadingSelectedUser ? (
+          <Box display="flex" justifyContent="center" py={4}>
+            <CircularProgress />
+          </Box>
+        ) : null}
+        {isSelectedUserError ? (
+          <Alert severity="error">
+            {selectedUserError?.message || 'Error cargando usuario.'}
+          </Alert>
+        ) : null}
+
+        {selectedUser ? (
+          <Paper sx={{ p: 3 }}>
+            <Stack spacing={2}>
+              <Typography variant="h4">
+                {selectedUser.firstName ?? ''} {selectedUser.lastName ?? ''}
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Documento: {selectedUser.nationalId} · Usuario: {selectedUser.username}
+              </Typography>
+              <Typography variant="body1">
+                Rol: {selectedUser.role} · Contacto: {selectedUser.email ?? 'Sin correo'} ·{' '}
+                {selectedUser.phone ?? 'Sin teléfono'}
+              </Typography>
+
+              {selectedUser.role === 'teacher' ? (
+                <>
+                  <Divider />
+
+                  <Stack spacing={1}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography variant="subtitle2">Asignaturas habilitadas</Typography>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => setIsAssignOpen(true)}
+                        disabled={availableSubjects.length === 0}
+                      >
+                        Agregar asignatura
+                      </Button>
+                    </Stack>
+
+                    {isLoadingTeacherSubjects ? (
+                      <CircularProgress size={20} />
+                    ) : isTeacherSubjectsError ? (
+                      <Alert severity="error">
+                        {teacherSubjectsError?.message || 'Error cargando asignaturas.'}
+                      </Alert>
+                    ) : (teacherSubjects ?? []).length > 0 ? (
+                      <Stack direction="row" flexWrap="wrap" gap={1}>
+                        {(teacherSubjects ?? []).map((item) => (
+                          <Chip
+                            key={item.teacherSubjectId}
+                            label={item.subject?.name ?? `Asignatura ${item.subjectId}`}
+                            onDelete={() => removeSubjectMutation.mutate(item.teacherSubjectId)}
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Sin asignaturas habilitadas.
+                      </Typography>
+                    )}
+                  </Stack>
+
+                  <Stack spacing={1}>
+                    <Typography variant="subtitle2">Grupos asignados</Typography>
+                    {isLoadingCourses ? (
+                      <CircularProgress size={20} />
+                    ) : isCoursesError ? (
+                      <Alert severity="error">
+                        {coursesError?.message || 'Error cargando cursos.'}
+                      </Alert>
+                    ) : homerooms.length > 0 ? (
+                      <Stack direction="row" flexWrap="wrap" gap={1}>
+                        {homerooms.map((group) => (
+                          <Chip key={group} color="primary" variant="outlined" label={group} />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        Sin grupos principales asignados.
+                      </Typography>
+                    )}
+                  </Stack>
+                </>
+              ) : null}
+            </Stack>
+          </Paper>
+        ) : null}
+
+        <Dialog open={isAssignOpen} onClose={() => setIsAssignOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Asignar asignatura</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel id="subject-select-label">Asignatura</InputLabel>
+              <Select
+                labelId="subject-select-label"
+                label="Asignatura"
+                value={selectedSubjectId}
+                onChange={(event) => setSelectedSubjectId(Number(event.target.value))}
+              >
+                {availableSubjects.map((subject) => (
+                  <MenuItem key={subject.subjectId} value={subject.subjectId}>
+                    {subject.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsAssignOpen(false)}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={() => {
+                if (!selectedUserId || selectedSubjectId === '') {
+                  return
+                }
+                assignSubjectMutation.mutate({
+                  teacherId: selectedUserId,
+                  subjectId: Number(selectedSubjectId),
+                })
+              }}
+              disabled={selectedSubjectId === '' || assignSubjectMutation.isPending}
+            >
+              Guardar
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    )
+  }
+
+  return (
+    <Box display="flex" flexDirection="column" gap={2}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+        <Typography variant="h5">Usuarios</Typography>
+        <Box sx={{ flexGrow: 1 }} />
+        <Button variant="contained" onClick={handleOpenCreate}>
+          Crear usuario
+        </Button>
+      </Stack>
+
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+        <TextField
+          label="Buscar"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Documento o nombre"
+          sx={{ maxWidth: 320 }}
+        />
+        <FormControl sx={{ minWidth: 220 }}>
+          <InputLabel id="role-select-label">Rol</InputLabel>
+          <Select
+            labelId="role-select-label"
+            label="Rol"
+            value={selectedRole}
+            onChange={(event) => setSelectedRole(event.target.value as RoleValue)}
+          >
+            {roles.map((role) => (
+              <MenuItem key={role.value} value={role.value}>
+                {role.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Stack>
+
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" py={4}>
+          <CircularProgress />
+        </Box>
+      ) : null}
+      {isError ? (
+        <Alert severity="error">{error?.message || 'Error cargando usuarios.'}</Alert>
+      ) : null}
+
+      {filteredUsers.length === 0 && !isLoading ? (
+        <Alert severity="info">No hay usuarios registrados para este rol.</Alert>
+      ) : null}
+
+      {filteredUsers.length > 0 ? (
+        <List sx={{ bgcolor: 'background.paper', borderRadius: 2 }}>
+          {filteredUsers.map((entry: User) => (
+            <ListItemButton
+              key={entry.nationalId}
+              divider
+              onClick={() => setSelectedUserId(entry.nationalId)}
+            >
+              <Stack spacing={0.5} sx={{ width: '100%' }}>
+                <Typography variant="subtitle1">
+                  {entry.firstName ?? ''} {entry.lastName ?? ''}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Documento: {entry.nationalId} · Usuario: {entry.username}
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip size="small" label={entry.role} />
+                  <Typography variant="caption">{entry.isActive ? 'Activo' : 'Inactivo'}</Typography>
+                </Stack>
+              </Stack>
+            </ListItemButton>
+          ))}
+        </List>
+      ) : null}
+
+      <Dialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nuevo usuario</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <FormControl fullWidth>
+            <InputLabel id="new-role-label">Rol</InputLabel>
+            <Select
+              labelId="new-role-label"
+              label="Rol"
+              value={draftUser.role}
+              onChange={(event) =>
+                setDraftUser((prev) => ({ ...prev, role: event.target.value as CreateUserPayload['role'] }))
+              }
+            >
+              {roles.map((role) => (
+                <MenuItem key={role.value} value={role.value}>
+                  {role.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            label="Documento"
+            value={draftUser.nationalId}
+            onChange={(event) => setDraftUser((prev) => ({ ...prev, nationalId: event.target.value }))}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              label="Nombres"
+              value={draftUser.firstName ?? ''}
+              onChange={(event) => setDraftUser((prev) => ({ ...prev, firstName: event.target.value }))}
+              fullWidth
+            />
+            <TextField
+              label="Apellidos"
+              value={draftUser.lastName ?? ''}
+              onChange={(event) => setDraftUser((prev) => ({ ...prev, lastName: event.target.value }))}
+              fullWidth
+            />
+          </Stack>
+
+          <TextField
+            label="Contraseña temporal"
+            type="text"
+            value={tempPassword}
+            InputProps={{ readOnly: true }}
+            helperText="Contraseña temporal = 1er apellido + 4 ultimos digitos del ID (ej: Medina9335)"
+          />
+
+          <TextField
+            label="Usuario (opcional)"
+            value={draftUser.username ?? ''}
+            onChange={(event) => setDraftUser((prev) => ({ ...prev, username: event.target.value }))}
+          />
+          <TextField
+            label="Correo (opcional)"
+            value={draftUser.email ?? ''}
+            onChange={(event) => setDraftUser((prev) => ({ ...prev, email: event.target.value }))}
+          />
+          <TextField
+            label="Teléfono (opcional)"
+            value={draftUser.phone ?? ''}
+            onChange={(event) => setDraftUser((prev) => ({ ...prev, phone: event.target.value }))}
+          />
+
+          {draftUser.role === 'teacher' ? (
+            <Stack spacing={1}>
+              {isLoadingAreas ? (
+                <Typography variant="body2" color="text.secondary">
+                  Cargando áreas...
+                </Typography>
+              ) : null}
+              {isAreasError ? (
+                <Alert severity="error">
+                  {areasError instanceof Error ? areasError.message : 'Error cargando áreas.'}
+                </Alert>
+              ) : null}
+              {!isLoadingAreas && !isAreasError && areas.length === 0 ? (
+                <Alert severity="warning">
+                  No hay áreas registradas. Crea una en la pestaña Áreas antes de asignar profesores.
+                </Alert>
+              ) : null}
+              <FormControl fullWidth>
+                <InputLabel id="areas-label">Áreas (máx. 3)</InputLabel>
+                <Select
+                  labelId="areas-label"
+                  label="Áreas (máx. 3)"
+                  multiple
+                  value={selectedAreas}
+                  onChange={(event) => handleAreaChange(event.target.value as number[])}
+                  renderValue={(selected) =>
+                    areas
+                      .filter((area) => selected.includes(area.areaId))
+                      .map((area) => area.name)
+                      .join(', ')
+                  }
+                  disabled={isLoadingAreas || areas.length === 0}
+                >
+                  {areas.length === 0 ? (
+                    <MenuItem disabled>No hay áreas disponibles</MenuItem>
+                  ) : (
+                    areas.map((area) => (
+                      <MenuItem key={area.areaId} value={area.areaId}>
+                        {area.name}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+                {areaError ? (
+                  <Typography color="error" variant="caption">
+                    {areaError}
+                  </Typography>
+                ) : null}
+              </FormControl>
+            </Stack>
+          ) : null}
+
+          {createMutation.isError ? (
+            <Alert severity="error">
+              {createMutation.error instanceof Error
+                ? createMutation.error.message
+                : 'No se pudo crear el usuario.'}
+            </Alert>
+          ) : null}
+          {assignSubjectsMutation.isError ? (
+            <Alert severity="warning">
+              {assignSubjectsMutation.error instanceof Error
+                ? assignSubjectsMutation.error.message
+                : 'Usuario creado, pero no se pudieron asignar las áreas.'}
+            </Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsCreateOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateUser}
+            disabled={
+              !draftUser.nationalId.trim() ||
+              !draftUser.firstName?.trim() ||
+              !draftUser.lastName?.trim() ||
+              !tempPassword ||
+              !areaIsValid ||
+              createMutation.isPending
+            }
+          >
+            Crear
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  )
+}
+
+export default UsersPage

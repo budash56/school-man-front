@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   AppBar,
   Box,
@@ -23,11 +23,11 @@ import {
   Menu as MenuIcon,
   People as PeopleIcon,
   School as SchoolIcon,
-  Person3 as Person3Icon,
   MenuBook as MenuBookIcon,
   MeetingRoom as MeetingRoomIcon,
   Schedule as ScheduleIcon,
   AutoStories as AutoStoriesIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -41,19 +41,6 @@ type NavItem = {
   path: string
   icon: ReactNode
 }
-
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
-  { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
-  { label: 'Enrollments', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
-  { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
-  { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },
-  { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
-  { label: 'Professors', path: '/dashboard/professors', icon: <Person3Icon /> },
-  { label: 'Subjects', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
-  { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
-  { label: 'Timetable generator', path: '/dashboard/timetable-generator', icon: <ScheduleIcon /> },
-]
 
 export const DashboardLayout = () => {
   const { user, logout } = useAuth()
@@ -79,6 +66,26 @@ export const DashboardLayout = () => {
     logout()
     navigate('/login', { replace: true })
   }
+
+  const navItems = useMemo<NavItem[]>(() => {
+    const items: NavItem[] = [
+      { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+      { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
+      { label: 'Enrollments', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
+      { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
+      { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },
+      { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
+      { label: 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
+      { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
+      { label: 'Timetable generator', path: '/dashboard/timetable-generator', icon: <ScheduleIcon /> },
+    ]
+
+    if (user?.role === 'admin') {
+      items.splice(3, 0, { label: 'Usuarios', path: '/dashboard/users', icon: <ManageAccountsIcon /> })
+    }
+
+    return items
+  }, [user?.role])
 
   const drawer = (
     <div>

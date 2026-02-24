@@ -103,6 +103,22 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 
 > **Proxy note:** `vite.config.ts` proxies `/api/*` to `VITE_DEV_API_PROXY_TARGET` (defaults to `http://localhost:3000`) so local dev hits the NestJS backend without CORS issues.
 
+## Timetable Generator
+- **Route:** `/dashboard/timetable-generator` (new sidebar entry inside `DashboardLayout`).
+- **Existing timetable mode:** When `/timetable-assignments` already contains entries for the selected school year + division, the page shows two side‑by‑side panes:
+  - **Profesores:** Search field + list of teachers. Clicking a button loads their schedule via `/timetable-assignments?teacherId=...` and renders it in a small table (handled by `TimetableResultsTable`).
+  - **Grupos:** Mirrors the teacher pane but filters class groups (queried through `useClassGroupsQuery` scoped to the division). Buttons fetch `/timetable-assignments?classGroupId=...`.
+  - Global actions below the panes: **Regenerate timetable** (confirmation dialog → re-run `timetableGeneratorApi.apply` with the current DTO) and **Delete timetable** (calls `timetableAssignmentsApi.deleteAllForYear`, iteratively DELETE `/timetable-assignments/:id`).
+- **Wizard mode:** Shown when the selected school year/division lacks assignments. It mirrors the backend generator contract (`GenerateTimetableDto`) and consists of:
+  1. **Scope:** Choose school year + division (`'elementary' | 'secondary' | 'senior'`) and auto-select all class groups belonging to that division (chips toggle entire grades).
+  2. **Time slots skeleton:** Loads `/timetable-slots?schoolYearId&division`. If none exist, the coordinator can define a pattern (period count, class duration, start time, gaps, lunch/general breaks) that the UI expands into slot DTOs and creates via `timetableSlotsApi.createBulkForYear`. Existing slot grids support delete + re-edit.
+  3. **Teacher constraints:** Requires `teacherWeeklyHourCap` (validated > 0) and allows optional per-teacher constraints (preferred shift, avoid last slot) backed by `TeacherConstraintDto`.
+  4. **Review / course preferences / preview & apply:** Summarizes the configuration, lets coordinators add per-course overrides (`CoursePreferenceDto`) sourced from `/courses?schoolYearId`, then:
+     - **Preview:** POST `/timetable-generator/preview` → displays proposed assignments, unassigned sessions, and grouping toggles (by class group/day). `ApiError` with message `insufficientTeacherCapacity` surfaces shortages returned by the backend.
+     - **Apply:** Enabled only after a successful preview. POST `/timetable-generator/apply`, display persisted vs. failed assignments, and invalidate the “has timetable” query so the page flips back to the “existing timetable” view.
+- **Supporting API clients:** `timetableGeneratorApi` (preview/apply + existing timetable helpers), `timetableSlotsApi` (list/create/delete per division), and `timetableAssignmentsApi.deleteAllForYear` (batch deletions). All fetchers respect the backend pagination maximum (`pageSize ≤ 100`).
+- **Error messaging:** Each step surfaces `ApiError` messages via MUI `<Alert>`s (slot creation failures, insufficient teacher capacity, preview/apply errors) so coordinators know whether to adjust constraints, add staff, or tweak slot skeletons.
+
 ## Recent Enhancements
 - **Data-driven School Years page:** Replaced static grade/group placeholders with live `/school-years` + `/class-groups` data, including student rosters retrieved via real enrollments.
 - **Enrollment Wizard:** Streamlined entry point, added last enrollment context, edit-in-place for existing students, and ensured all selectors are populated from the backend.

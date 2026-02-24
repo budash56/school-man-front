@@ -16,6 +16,13 @@ export type SubjectsQuery = {
   pageSize?: number
 }
 
+export type CreateSubjectPayload = {
+  areaId: number
+  code: string
+  name: string
+  description?: string
+}
+
 export const subjectsApi = {
   list(params: SubjectsQuery = {}) {
     return apiClient.get<PaginatedResult<Subject>>('/subjects', {
@@ -26,5 +33,11 @@ export const subjectsApi = {
         pageSize: params.pageSize,
       },
     })
+  },
+  create(payload: CreateSubjectPayload) {
+    return apiClient.post<Subject>('/subjects', payload)
+  },
+  remove(subjectId: number) {
+    return apiClient.del<{ deleted: true }>(`/subjects/${subjectId}`)
   },
 }
