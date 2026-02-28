@@ -51,10 +51,13 @@ const getErrorMessage = (error: unknown, fallback = 'Ocurrió un error') => {
   return fallback
 }
 
+const gradeOptions = Array.from({ length: 11 }, (_, index) => index + 1)
+
 const EnrollmentWizardPage = () => {
   const navigate = useNavigate()
 
   const [selectedYearId, setSelectedYearId] = useState('')
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState('')
   const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
   const [nationalId, setNationalId] = useState('')
   const [mode, setMode] = useState<WizardMode>('idle')
@@ -68,6 +71,7 @@ const EnrollmentWizardPage = () => {
   const [lastEnrollmentError, setLastEnrollmentError] = useState<string | null>(null)
 
   const schoolYearId = selectedYearId ? Number(selectedYearId) || undefined : undefined
+  const gradeLevel = selectedGradeLevel ? Number(selectedGradeLevel) || undefined : undefined
   const classGroupId = selectedClassGroupId ? Number(selectedClassGroupId) || undefined : undefined
 
   const {
@@ -107,6 +111,23 @@ const EnrollmentWizardPage = () => {
   })
 
   const classGroupOptions = classGroups?.data ?? []
+  const filteredClassGroupOptions = useMemo(() => {
+    if (!gradeLevel) {
+      return []
+    }
+    return classGroupOptions.filter((group) => group.gradeLevel === gradeLevel)
+  }, [classGroupOptions, gradeLevel])
+  const classGroupHelperText = isClassGroupError
+    ? getErrorMessage(classGroupError)
+    : gradeLevel && !isLoadingClassGroups && filteredClassGroupOptions.length === 0
+      ? 'No hay secciones registradas para este grado.'
+      : undefined
+  const lastEnrollmentGroup = useMemo(() => {
+    if (!lastEnrollment) {
+      return null
+    }
+    return classGroupOptions.find((group) => group.classGroupId === lastEnrollment.classGroupId) ?? null
+  }, [lastEnrollment, classGroupOptions])
   const isCheckDisabled = !nationalId.trim() || isSearching
   const canConfirmExisting = Boolean(existingStudent && schoolYearId && classGroupId && !createEnrollmentMutation.isPending)
   const isNewFormValid = useMemo(() => {
@@ -133,11 +154,18 @@ const EnrollmentWizardPage = () => {
     setLastEnrollment(null)
     setLastEnrollmentError(null)
     setSelectedYearId('')
+    setSelectedGradeLevel('')
     setSelectedClassGroupId('')
   }
 
   const handleYearChange = (event: ChangeEvent<HTMLInputElement>) => {
     setSelectedYearId(event.target.value)
+    setSelectedGradeLevel('')
+    setSelectedClassGroupId('')
+  }
+
+  const handleGradeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSelectedGradeLevel(event.target.value)
     setSelectedClassGroupId('')
   }
 
@@ -307,14 +335,29 @@ const EnrollmentWizardPage = () => {
       <TextField
         select
         fullWidth
-        label="Grupo"
+        label="Grado"
+        value={selectedGradeLevel}
+        onChange={handleGradeChange}
+        disabled={!schoolYearId}
+      >
+        <MenuItem value="">Selecciona un grado</MenuItem>
+        {gradeOptions.map((grade) => (
+          <MenuItem key={grade} value={String(grade)}>
+            Grado {grade}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        select
+        fullWidth
+        label="Sección"
         value={selectedClassGroupId}
         onChange={handleClassGroupChange}
-        disabled={!schoolYearId || isLoadingClassGroups}
-        helperText={isClassGroupError ? getErrorMessage(classGroupError) : undefined}
+        disabled={!schoolYearId || !gradeLevel || isLoadingClassGroups}
+        helperText={classGroupHelperText}
       >
-        <MenuItem value="">Selecciona un grupo</MenuItem>
-        {classGroupOptions.map((group) => (
+        <MenuItem value="">Selecciona una sección</MenuItem>
+        {filteredClassGroupOptions.map((group) => (
           <MenuItem key={group.classGroupId} value={String(group.classGroupId)}>
             {group.gradeLevel} {group.section}
           </MenuItem>
@@ -442,7 +485,10 @@ const EnrollmentWizardPage = () => {
             </Stack>
             {lastEnrollment ? (
               <Typography color="text.secondary">
-                Última matrícula: Año {lastEnrollment.schoolYearId} · Grupo {lastEnrollment.classGroupId}
+                Última matrícula: Año {lastEnrollment.schoolYearId} ·{' '}
+                {lastEnrollmentGroup
+                  ? `Grado ${lastEnrollmentGroup.gradeLevel} · Sección ${lastEnrollmentGroup.section}`
+                  : `Sección ${lastEnrollment.classGroupId}`}
               </Typography>
             ) : lastEnrollmentError ? (
               <Alert severity="warning">{lastEnrollmentError}</Alert>
