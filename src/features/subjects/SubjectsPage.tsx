@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
   List,
   ListItemButton,
@@ -25,6 +26,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  Switch,
 } from '@mui/material'
 import { Add as AddIcon, ArrowBack as ArrowBackIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +34,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   subjectAreasApi,
   type CreateSubjectAreaPayload,
+  type UpdateSubjectAreaPayload,
 } from '../../api/subjectAreasApi'
 import { subjectsApi, type CreateSubjectPayload, type Subject } from '../../api/subjectsApi'
 import { professorsApi, type Professor } from '../../api/professorsApi'
@@ -48,6 +51,16 @@ const useAreasQuery = () => {
 }
 
 const CODE_REGEX = /^[A-Z0-9_]{2,16}$/
+const SPECIALIZATION_COLORS = [
+  '#E3F2FD',
+  '#FFF3E0',
+  '#E8F5E9',
+  '#F3E5F5',
+  '#FCE4EC',
+  '#E0F7FA',
+  '#F9FBE7',
+  '#EDE7F6',
+]
 
 const sanitizeCode = (value: string) => value.toUpperCase().replace(/[^A-Z0-9_]/g, '')
 
@@ -85,17 +98,69 @@ const buildCodeFromName = (value: string, minLength: number) => {
   return cleaned
 }
 
+const normalizeNameKey = (value: string) => {
+  const normalized = normalizeInput(value)
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return normalized
+}
+
+const buildSubjectSuffix = (value: string, minLength: number) => {
+  const normalized = normalizeInput(value)
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .trim()
+
+  if (!normalized) {
+    return { base: '', extension: '' }
+  }
+
+  const parts = normalized.split(/\s+/).filter(Boolean)
+  let base = parts.map((part) => part[0]).join('')
+  let extension = parts.map((part) => part.slice(1)).join('')
+
+  base = sanitizeCode(base)
+  extension = sanitizeCode(extension)
+
+  if (base.length < minLength && extension.length > 0) {
+    const needed = minLength - base.length
+    base += extension.slice(0, needed)
+    extension = extension.slice(needed)
+  }
+
+  if (base.length < minLength) {
+    return { base: '', extension: '' }
+  }
+
+  return { base, extension }
+}
+
 const generateAreaCode = (value: string) => {
   return buildCodeFromName(value, 2).slice(0, 16)
 }
 
-const generateSubjectCode = (areaCode: string | null | undefined, subjectName: string) => {
+const generateSubjectCode = (
+  areaCode: string | null | undefined,
+  subjectName: string,
+  existingCodes?: Map<string, string>,
+) => {
   const prefix = areaCode ? sanitizeCode(areaCode) : ''
   const suffixMin = prefix ? 1 : 2
-  const suffix = buildCodeFromName(subjectName, suffixMin)
+  const { base, extension } = buildSubjectSuffix(subjectName, suffixMin)
 
   if (!prefix) {
-    return suffix.slice(0, 16)
+    const maxSuffix = 16
+    return generateUniqueCandidate(
+      '',
+      base,
+      extension,
+      maxSuffix,
+      subjectName,
+      existingCodes,
+    )
   }
 
   const maxSuffix = 16 - prefix.length - 1
@@ -103,11 +168,65 @@ const generateSubjectCode = (areaCode: string | null | undefined, subjectName: s
     return prefix.slice(0, 16)
   }
 
-  const trimmedSuffix = suffix ? suffix.slice(0, maxSuffix) : ''
-  return trimmedSuffix ? `${prefix}_${trimmedSuffix}` : prefix.slice(0, 16)
+  const suffix = generateUniqueCandidate(
+    prefix,
+    base,
+    extension,
+    maxSuffix,
+    subjectName,
+    existingCodes,
+  )
+  return suffix ? `${prefix}_${suffix}` : prefix.slice(0, 16)
 }
 
-const emptyArea: CreateSubjectAreaPayload = { code: '', name: '' }
+const isCodeAvailable = (
+  code: string,
+  subjectName: string,
+  existingCodes?: Map<string, string>,
+) => {
+  if (!existingCodes || existingCodes.size === 0) {
+    return true
+  }
+  const existingName = existingCodes.get(code)
+  if (!existingName) {
+    return true
+  }
+  return normalizeNameKey(existingName) === normalizeNameKey(subjectName)
+}
+
+const generateUniqueCandidate = (
+  prefix: string,
+  base: string,
+  extension: string,
+  maxLength: number,
+  subjectName: string,
+  existingCodes?: Map<string, string>,
+) => {
+  if (!base) {
+    return ''
+  }
+
+  const buildFullCode = (suffix: string) => (prefix ? `${prefix}_${suffix}` : suffix)
+
+  let candidate = base.slice(0, maxLength)
+  if (isCodeAvailable(buildFullCode(candidate), subjectName, existingCodes)) {
+    return candidate
+  }
+
+  let suffix = candidate
+  let index = 0
+  while (suffix.length < maxLength && index < extension.length) {
+    suffix = `${suffix}${extension[index]}`.slice(0, maxLength)
+    if (isCodeAvailable(buildFullCode(suffix), subjectName, existingCodes)) {
+      return suffix
+    }
+    index += 1
+  }
+
+  return candidate
+}
+
+const emptyArea: CreateSubjectAreaPayload = { code: '', name: '', isSpecialization: false }
 const emptySubject: CreateSubjectPayload = { areaId: 0, code: '', name: '', description: '' }
 
 type TeacherProfile = Professor
@@ -120,6 +239,13 @@ type TeacherDialogState = {
   canLoadCourses: boolean
 }
 
+type EditableArea = {
+  areaId: number
+  name: string
+  code: string | null
+  isSpecialization: boolean
+}
+
 export const SubjectsPage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -129,6 +255,7 @@ export const SubjectsPage = () => {
   const [search, setSearch] = useState('')
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null)
   const [isAreaDialogOpen, setIsAreaDialogOpen] = useState(false)
+  const [isEditAreaDialogOpen, setIsEditAreaDialogOpen] = useState(false)
   const [isSubjectDialogOpen, setIsSubjectDialogOpen] = useState(false)
   const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false)
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherProfile | null>(null)
@@ -136,12 +263,33 @@ export const SubjectsPage = () => {
   const [assignTeacherId, setAssignTeacherId] = useState('')
   const [assignSubjectIds, setAssignSubjectIds] = useState<number[]>([])
   const [newArea, setNewArea] = useState<CreateSubjectAreaPayload>(emptyArea)
+  const [editArea, setEditArea] = useState<EditableArea | null>(null)
   const [newSubject, setNewSubject] = useState<CreateSubjectPayload>(emptySubject)
 
   const areaCode = generateAreaCode(newArea.name)
 
   const { data, isLoading, isError, error, refetch } = useAreasQuery()
   const areas = data?.data ?? []
+  const existingSubjectCodeMap = useMemo(() => {
+    const map = new Map<string, string>()
+    areas.forEach((area) => {
+      area.subjects?.forEach((subject) => {
+        if (!subject.subjectCode) {
+          return
+        }
+        map.set(sanitizeCode(subject.subjectCode), subject.name)
+      })
+    })
+    return map
+  }, [areas])
+  const specializationColorMap = useMemo(() => {
+    const map = new Map<number, string>()
+    const specializationAreas = areas.filter((area) => area.isSpecialization)
+    specializationAreas.forEach((area, index) => {
+      map.set(area.areaId, SPECIALIZATION_COLORS[index % SPECIALIZATION_COLORS.length])
+    })
+    return map
+  }, [areas])
 
   const { data: professorsResult } = useQuery({
     queryKey: ['professors', 'all'],
@@ -222,7 +370,11 @@ export const SubjectsPage = () => {
     return subjectTeacherMap.get(selectedSubject.subjectId) ?? []
   }, [selectedSubject, subjectTeacherMap])
 
-  const subjectCode = generateSubjectCode(selectedArea?.code, newSubject.name)
+  const subjectCode = generateSubjectCode(
+    selectedArea?.code,
+    newSubject.name,
+    existingSubjectCodeMap,
+  )
 
   const createAreaMutation = useMutation({
     mutationFn: subjectAreasApi.create,
@@ -230,6 +382,18 @@ export const SubjectsPage = () => {
       setIsAreaDialogOpen(false)
       setNewArea(emptyArea)
       refetch()
+    },
+  })
+
+  const updateAreaMutation = useMutation({
+    mutationFn: ({ areaId, payload }: { areaId: number; payload: UpdateSubjectAreaPayload }) =>
+      subjectAreasApi.update(areaId, payload),
+    onSuccess: () => {
+      setIsEditAreaDialogOpen(false)
+      setEditArea(null)
+      refetch()
+      queryClient.invalidateQueries({ queryKey: ['subject-areas', 'all'] })
+      queryClient.invalidateQueries({ queryKey: ['subject-areas', 'with-subjects'] })
     },
   })
 
@@ -322,6 +486,29 @@ export const SubjectsPage = () => {
     setIsSubjectDialogOpen(true)
   }
 
+  const handleOpenEditAreaDialog = () => {
+    if (!selectedArea) {
+      return
+    }
+    setEditArea({
+      areaId: selectedArea.areaId,
+      name: selectedArea.name,
+      code: selectedArea.code ?? null,
+      isSpecialization: Boolean(selectedArea.isSpecialization),
+    })
+    setIsEditAreaDialogOpen(true)
+  }
+
+  const handleSaveEditArea = () => {
+    if (!editArea) {
+      return
+    }
+    updateAreaMutation.mutate({
+      areaId: editArea.areaId,
+      payload: { isSpecialization: editArea.isSpecialization },
+    })
+  }
+
   const handleDeleteSubject = (subjectId: number) => {
     if (!canManage) {
       return
@@ -379,8 +566,16 @@ export const SubjectsPage = () => {
                 gap: 2,
               }}
             >
-              {filteredAreas.map((area) => (
-                <Paper key={area.areaId} variant="outlined">
+              {filteredAreas.map((area) => {
+                const highlight = area.isSpecialization
+                  ? specializationColorMap.get(area.areaId)
+                  : undefined
+                return (
+                  <Paper
+                    key={area.areaId}
+                    variant="outlined"
+                    sx={highlight ? { backgroundColor: highlight } : undefined}
+                  >
                   <ButtonBase
                     onClick={() => {
                       setSelectedAreaId(area.areaId)
@@ -396,12 +591,18 @@ export const SubjectsPage = () => {
                     }}
                   >
                     <Typography variant="h6">{area.name}</Typography>
+                    {area.isSpecialization ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Área de especialización
+                      </Typography>
+                    ) : null}
                     <Typography variant="body2" color="text.secondary">
                       {area.subjects?.length ?? 0} asignaturas
                     </Typography>
                   </ButtonBase>
                 </Paper>
-              ))}
+                )
+              })}
             </Box>
           )}
         </>
@@ -419,6 +620,9 @@ export const SubjectsPage = () => {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             <Stack direction="row" spacing={1}>
+              <Button variant="outlined" onClick={handleOpenEditAreaDialog}>
+                Editar área
+              </Button>
               <Button
                 variant="outlined"
                 onClick={() => setIsAssignTeacherOpen(true)}
@@ -557,6 +761,25 @@ export const SubjectsPage = () => {
               setNewArea((prev) => ({ ...prev, name, code: generateAreaCode(name) }))
             }}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={Boolean(newArea.isSpecialization)}
+                onChange={(event) =>
+                  setNewArea((prev) => ({
+                    ...prev,
+                    isSpecialization: event.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Área de especialización"
+          />
+          {newArea.isSpecialization ? (
+            <Typography variant="caption" color="text.secondary">
+              Esta área se usará para especializaciones de currículo.
+            </Typography>
+          ) : null}
           <Typography variant="body2" color="text.secondary">
             Código automático: {areaCode ? areaCode : '—'}
           </Typography>
@@ -591,6 +814,68 @@ export const SubjectsPage = () => {
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={isEditAreaDialogOpen}
+        onClose={() => {
+          setIsEditAreaDialogOpen(false)
+          setEditArea(null)
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Editar área</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <TextField label="Nombre" value={editArea?.name ?? ''} disabled />
+          <TextField label="Código" value={editArea?.code ?? '—'} disabled />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={Boolean(editArea?.isSpecialization)}
+                onChange={(event) =>
+                  setEditArea((prev) =>
+                    prev ? { ...prev, isSpecialization: event.target.checked } : prev,
+                  )
+                }
+              />
+            }
+            label="Área de especialización"
+          />
+          {editArea?.isSpecialization ? (
+            <Typography variant="caption" color="text.secondary">
+              Esta área se usará para especializaciones de currículo.
+            </Typography>
+          ) : (
+            <Typography variant="caption" color="text.secondary">
+              Las áreas no marcadas como especialización se usan en currículo base.
+            </Typography>
+          )}
+          {updateAreaMutation.isError ? (
+            <Alert severity="error">
+              {updateAreaMutation.error instanceof Error
+                ? updateAreaMutation.error.message
+                : 'No se pudo actualizar el área.'}
+            </Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setIsEditAreaDialogOpen(false)
+              setEditArea(null)
+            }}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEditArea}
+            disabled={!editArea || updateAreaMutation.isPending}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={isSubjectDialogOpen} onClose={() => setIsSubjectDialogOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Nueva asignatura</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
@@ -600,7 +885,11 @@ export const SubjectsPage = () => {
             value={newSubject.name}
             onChange={(event) => {
               const name = event.target.value
-              const code = generateSubjectCode(selectedArea?.code, name)
+              const code = generateSubjectCode(
+                selectedArea?.code,
+                name,
+                existingSubjectCodeMap,
+              )
               setNewSubject((prev) => ({ ...prev, name, code }))
             }}
           />

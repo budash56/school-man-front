@@ -6,6 +6,7 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -16,9 +17,11 @@ import {
   InputLabel,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   MenuItem,
   Paper,
+  Radio,
   Select,
   Stack,
   Switch,
@@ -32,13 +35,19 @@ import {
   Typography,
 } from '@mui/material'
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material'
+import { ExpandLess, ExpandMore } from '@mui/icons-material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { curriculumItemsApi } from '../../api/curriculumItemsApi'
 import { curriculaApi, type CreateCurriculumItemPayload } from '../../api/curriculaApi'
-import { subjectsApi, type Subject } from '../../api/subjectsApi'
+import { subjectAreasApi, type SubjectArea } from '../../api/subjectAreasApi'
+import { type Subject } from '../../api/subjectsApi'
 import { useAuth } from '../auth/AuthContext'
 
-const gradeLevels = Array.from({ length: 11 }, (_, index) => index + 1)
+type GradeSelection = {
+  gradeLevel: number
+  trackName: string | null
+}
 
 type EditableCurriculumItem = {
   curriculumItemId: number
@@ -51,13 +60,25 @@ type EditableCurriculumItem = {
 
 export const CurriculumPage = () => {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [selectedGrade, setSelectedGrade] = useState<number>(10)
+  const canManageCurriculum = user?.role === 'admin' || user?.role === 'coordinator'
+  const [selectedGrade, setSelectedGrade] = useState<GradeSelection>({ gradeLevel: 10, trackName: null })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isSpecializationOpen, setIsSpecializationOpen] = useState(false)
+  const [isLinkAreaOpen, setIsLinkAreaOpen] = useState(false)
+  const [linkAreaId, setLinkAreaId] = useState<number | null>(null)
+  const [isPrimaryOpen, setIsPrimaryOpen] = useState(false)
+  const [isSecondaryOpen, setIsSecondaryOpen] = useState(false)
+  const [isSeniorOpen, setIsSeniorOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
+  const [draftTrackName, setDraftTrackName] = useState('')
   const [draftActive, setDraftActive] = useState(true)
   const [draftItems, setDraftItems] = useState<CreateCurriculumItemPayload[]>([])
+  const [draftSpecializationAreaId, setDraftSpecializationAreaId] = useState<number | null>(null)
+  const [specializationAreaId, setSpecializationAreaId] = useState<number | null>(null)
+  const [specializationName, setSpecializationName] = useState('')
   const [editItems, setEditItems] = useState<EditableCurriculumItem[]>([])
   const [editNewItems, setEditNewItems] = useState<CreateCurriculumItemPayload[]>([])
   const [removedItemIds, setRemovedItemIds] = useState<number[]>([])
@@ -69,24 +90,245 @@ export const CurriculumPage = () => {
     queryFn: () => curriculaApi.list(),
   })
 
-  const { data: subjectsResult, isLoading: isLoadingSubjects } = useQuery({
-    queryKey: ['subjects', 'all'],
-    queryFn: () => subjectsApi.list({ pageSize: 100 }),
+  const { data: subjectAreasResult, isLoading: isLoadingSubjects } = useQuery({
+    queryKey: ['subject-areas', 'all'],
+    queryFn: () => subjectAreasApi.list({ pageSize: 100, includeSubjects: true }),
   })
 
-  const subjects = subjectsResult?.data ?? []
-
-  const selectedCurriculum = useMemo(
-    () => curricula?.find((item) => item.gradeLevel === selectedGrade) ?? null,
-    [curricula, selectedGrade],
+  const subjectAreas = subjectAreasResult?.data ?? []
+  const subjects = useMemo(() => {
+    if (!subjectAreas.length) {
+      return []
+    }
+    const map = new Map<number, Subject>()
+    subjectAreas.forEach((area) => {
+      area.subjects?.forEach((subject) => {
+        map.set(subject.subjectId, subject)
+      })
+    })
+    return Array.from(map.values())
+  }, [subjectAreas])
+  const toNumber = (value: number | string | null | undefined) =>
+    value === null || value === undefined ? null : Number(value)
+  const specializationAreas = useMemo(
+    () => subjectAreas.filter((area) => area.isSpecialization),
+    [subjectAreas],
   )
+  const usedSpecializationAreaIds = useMemo(() => {
+    const used = new Set<number>()
+    ;(curricula ?? []).forEach((curriculum) => {
+      if (curriculum.trackName && curriculum.specializationAreaId) {
+        const areaId = toNumber(curriculum.specializationAreaId)
+        if (areaId !== null) {
+          used.add(areaId)
+        }
+      }
+    })
+    return used
+  }, [curricula])
+  const availableSpecializationAreas = useMemo(
+    () =>
+      specializationAreas.filter((area) => {
+        const areaId = toNumber(area.areaId)
+        return areaId !== null && !usedSpecializationAreaIds.has(areaId)
+      }),
+    [specializationAreas, usedSpecializationAreaIds],
+  )
+  const hasSpecializationAreas = specializationAreas.length > 0
+  const hasAvailableSpecializationAreas = availableSpecializationAreas.length > 0
+  const specializationAreaIds = useMemo(
+    () =>
+      new Set(
+        specializationAreas
+          .map((area) => toNumber(area.areaId))
+          .filter((areaId): areaId is number => areaId !== null),
+      ),
+    [specializationAreas],
+  )
+  const subjectAreaBySubjectId = useMemo(() => {
+    const map = new Map<number, number>()
+    subjectAreas.forEach((area) => {
+      area.subjects?.forEach((subject) => {
+        const subjectId = toNumber(subject.subjectId)
+        const areaId = toNumber(area.areaId)
+        if (subjectId !== null && areaId !== null) {
+          map.set(subjectId, areaId)
+        }
+      })
+    })
+    return map
+  }, [subjectAreas])
+
+  const resolveSubjectAreaId = (subject: Subject) =>
+    toNumber(subject.areaId) ?? subjectAreaBySubjectId.get(Number(subject.subjectId)) ?? null
+
+  const isSpecializationSubject = (subject: Subject) => {
+    const areaId = resolveSubjectAreaId(subject)
+    return areaId ? specializationAreaIds.has(areaId) : false
+  }
+
+  const getVisibleItemsForCurriculum = (curriculum: typeof selectedCurriculum) => {
+    if (!curriculum?.items?.length) {
+      return []
+    }
+    if (curriculum.trackName) {
+      return curriculum.items
+    }
+    if (specializationAreaIds.size === 0) {
+      return curriculum.items
+    }
+    const specializationId = curriculum.specializationAreaId
+      ? Number(curriculum.specializationAreaId)
+      : null
+    if (curriculum.trackName && specializationId === null) {
+      return curriculum.items
+    }
+    return curriculum.items.filter((item) => {
+      const areaId = subjectAreaBySubjectId.get(Number(item.subjectId)) ?? null
+      if (!areaId) {
+        return true
+      }
+      if (!specializationAreaIds.has(areaId)) {
+        return true
+      }
+      if (!curriculum.trackName) {
+        return false
+      }
+      return specializationId !== null && areaId === specializationId
+    })
+  }
+
+  const specializationGrades = useMemo(
+    () => (curricula ?? []).filter((item) => item.trackName),
+    [curricula],
+  )
+  const sortedSpecializations = useMemo(() => {
+    return [...specializationGrades].sort((a, b) => {
+      if (a.gradeLevel !== b.gradeLevel) {
+        return a.gradeLevel - b.gradeLevel
+      }
+      return (a.trackName ?? '').localeCompare(b.trackName ?? '')
+    })
+  }, [specializationGrades])
+  const specializationGroups = useMemo(() => {
+    const groups = new Map<string, typeof specializationGrades>()
+    sortedSpecializations.forEach((curriculum) => {
+      const key = curriculum.trackName ?? 'Especialización'
+      const list = groups.get(key) ?? []
+      list.push(curriculum)
+      groups.set(key, list)
+    })
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+  }, [sortedSpecializations, specializationGrades])
+
+  const selectedCurriculum = useMemo(() => {
+    const trackName = selectedGrade.trackName ?? null
+    return (
+      curricula?.find(
+        (item) =>
+          item.gradeLevel === selectedGrade.gradeLevel &&
+          (item.trackName ?? null) === trackName,
+      ) ?? null
+    )
+  }, [curricula, selectedGrade])
+
+  const selectedSpecializationArea = useMemo(() => {
+    const specializationId = toNumber(selectedCurriculum?.specializationAreaId)
+    if (specializationId === null && !selectedCurriculum?.specializationArea) {
+      return null
+    }
+    const fromList =
+      specializationId !== null
+        ? subjectAreas.find((area) => toNumber(area.areaId) === specializationId) ?? null
+        : null
+    return fromList ?? selectedCurriculum?.specializationArea ?? null
+  }, [selectedCurriculum, subjectAreas])
+
+  const visibleCurriculumItems = useMemo(() => {
+    return getVisibleItemsForCurriculum(selectedCurriculum)
+  }, [selectedCurriculum, specializationAreaIds, subjectAreaBySubjectId])
+
+  const draftSpecializationArea = useMemo(() => {
+    if (!draftSpecializationAreaId) {
+      return null
+    }
+    return (
+      subjectAreas.find((area) => toNumber(area.areaId) === draftSpecializationAreaId) ?? null
+    )
+  }, [draftSpecializationAreaId, subjectAreas])
+
+  const filterSubjectsForSpecialization = (areaId: number | null) => {
+    if (specializationAreaIds.size === 0) {
+      return subjects
+    }
+    return subjects.filter((subject) => {
+      const resolvedAreaId = resolveSubjectAreaId(subject)
+      if (!resolvedAreaId) {
+        return true
+      }
+      if (!specializationAreaIds.has(resolvedAreaId)) {
+        return true
+      }
+      return areaId !== null && resolvedAreaId === areaId
+    })
+  }
+
+  const filterSubjectsForBase = () => {
+    if (specializationAreaIds.size === 0) {
+      return subjects
+    }
+    return subjects.filter((subject) => !isSpecializationSubject(subject))
+  }
+
+  const availableSubjectsForDraft = useMemo(() => {
+    if (!selectedGrade.trackName) {
+      return filterSubjectsForBase()
+    }
+    return filterSubjectsForSpecialization(draftSpecializationAreaId)
+  }, [
+    draftSpecializationAreaId,
+    selectedGrade.trackName,
+    subjects,
+    specializationAreaIds,
+    subjectAreaBySubjectId,
+  ])
+
+  const availableSubjectsForEdit = useMemo(() => {
+    if (!selectedCurriculum?.trackName) {
+      return filterSubjectsForBase()
+    }
+    const specializationId = toNumber(selectedCurriculum.specializationAreaId)
+    return filterSubjectsForSpecialization(specializationId)
+  }, [selectedCurriculum, subjects, specializationAreaIds, subjectAreaBySubjectId])
 
   const selectedTotalHours = useMemo(() => {
-    if (!selectedCurriculum?.items?.length) {
+    if (!visibleCurriculumItems.length) {
       return 0
     }
-    return selectedCurriculum.items.reduce((total, item) => total + (item.weeklyHours ?? 0), 0)
-  }, [selectedCurriculum])
+    return visibleCurriculumItems.reduce((total, item) => total + (item.weeklyHours ?? 0), 0)
+  }, [visibleCurriculumItems])
+
+  const selectedGradeLabel = selectedGrade.trackName
+    ? `Grado ${selectedGrade.gradeLevel} · ${selectedGrade.trackName}`
+    : `Grado ${selectedGrade.gradeLevel}`
+
+  const renderGradeItem = (grade: number) => {
+    const curriculum = curricula?.find((item) => item.gradeLevel === grade && !item.trackName)
+    const visibleCount = curriculum ? getVisibleItemsForCurriculum(curriculum).length : 0
+    return (
+      <ListItemButton
+        key={grade}
+        selected={grade === selectedGrade.gradeLevel && !selectedGrade.trackName}
+        onClick={() => setSelectedGrade({ gradeLevel: grade, trackName: null })}
+        sx={{ pl: 3 }}
+      >
+        <ListItemText
+          primary={`Grado ${grade}`}
+          secondary={curriculum ? `${visibleCount} asignaturas` : 'Sin currículo'}
+        />
+      </ListItemButton>
+    )
+  }
 
   const createMutation = useMutation({
     mutationFn: curriculaApi.create,
@@ -96,10 +338,61 @@ export const CurriculumPage = () => {
     },
   })
 
+  const linkAreaMutation = useMutation({
+    mutationFn: ({
+      curriculumId,
+      specializationAreaId,
+    }: {
+      curriculumId: number
+      specializationAreaId: number
+    }) => curriculaApi.linkSpecializationArea(curriculumId, specializationAreaId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['curricula'] })
+      setIsLinkAreaOpen(false)
+      setLinkAreaId(null)
+    },
+  })
+
   const handleOpenDialog = () => {
-    setDraftName(`Currículo grado ${selectedGrade}`)
+    if (selectedGrade.trackName) {
+      setDraftName(`${selectedGrade.trackName} ${selectedGrade.gradeLevel}`)
+    } else {
+      setDraftName(`Currículo grado ${selectedGrade.gradeLevel}`)
+    }
+    setDraftTrackName(selectedGrade.trackName ?? '')
     setDraftActive(true)
     setDraftItems([])
+    setDraftSpecializationAreaId(null)
+    setIsDialogOpen(true)
+  }
+
+  const handleCreateSpecialization = () => {
+    const trackName = specializationName.trim()
+    if (!trackName) {
+      return
+    }
+    const existing = curricula?.find(
+      (item) =>
+        item.gradeLevel === 10 &&
+        (item.trackName ?? null) === trackName,
+    )
+    if (existing) {
+      setSelectedGrade({ gradeLevel: existing.gradeLevel, trackName })
+      setSpecializationName('')
+      setIsSpecializationOpen(false)
+      return
+    }
+    if (!specializationAreaId) {
+      return
+    }
+    setSelectedGrade({ gradeLevel: 10, trackName })
+    setDraftName(`${trackName} 10`)
+    setDraftTrackName(trackName)
+    setDraftActive(true)
+    setDraftItems([])
+    setDraftSpecializationAreaId(specializationAreaId)
+    setSpecializationName('')
+    setIsSpecializationOpen(false)
     setIsDialogOpen(true)
   }
 
@@ -109,8 +402,8 @@ export const CurriculumPage = () => {
     }
     setEditItems(
       selectedCurriculum.items.map((item) => ({
-        curriculumItemId: item.curriculumItemId,
-        subjectId: item.subjectId,
+        curriculumItemId: Number(item.curriculumItemId),
+        subjectId: Number(item.subjectId),
         subjectName: item.subject?.name ?? `Asignatura ${item.subjectId}`,
         weeklyHours: item.weeklyHours,
         doubleSessionRequired: item.doubleSessionRequired,
@@ -123,18 +416,30 @@ export const CurriculumPage = () => {
     setIsEditOpen(true)
   }
 
+  const handleOpenLinkArea = () => {
+    if (!selectedCurriculum?.trackName) {
+      return
+    }
+    const currentAreaId = toNumber(selectedSpecializationArea?.areaId)
+    const fallbackAreaId = toNumber(specializationAreas[0]?.areaId)
+    setLinkAreaId(currentAreaId ?? fallbackAreaId)
+    setIsLinkAreaOpen(true)
+  }
+
   const handleAddItem = () => {
-    if (subjects.length === 0) {
+    if (availableSubjectsForDraft.length === 0) {
       return
     }
 
     const selectedIds = new Set(draftItems.map((item) => item.subjectId))
-    const nextSubject = subjects.find((subject) => !selectedIds.has(subject.subjectId))
+    const nextSubject = availableSubjectsForDraft.find(
+      (subject) => !selectedIds.has(subject.subjectId),
+    )
 
     setDraftItems((prev) => [
       ...prev,
       {
-        subjectId: nextSubject?.subjectId ?? subjects[0].subjectId,
+        subjectId: nextSubject?.subjectId ?? availableSubjectsForDraft[0].subjectId,
         weeklyHours: 0,
         doubleSessionRequired: false,
         notes: '',
@@ -155,14 +460,16 @@ export const CurriculumPage = () => {
   }
 
   const handleAddEditItem = () => {
-    if (!selectedCurriculum || subjects.length === 0) {
+    if (!selectedCurriculum || availableSubjectsForEdit.length === 0) {
       return
     }
     const selectedIds = new Set([
       ...editItems.map((item) => item.subjectId),
       ...editNewItems.map((item) => item.subjectId),
     ])
-    const nextSubject = subjects.find((subject) => !selectedIds.has(subject.subjectId))
+    const nextSubject = availableSubjectsForEdit.find(
+      (subject) => !selectedIds.has(subject.subjectId),
+    )
     if (!nextSubject) {
       return
     }
@@ -203,6 +510,16 @@ export const CurriculumPage = () => {
     )
   }
 
+  const handleEditDoubleSessionChange = (curriculumItemId: number, value: boolean) => {
+    setEditItems((prev) =>
+      prev.map((item) =>
+        item.curriculumItemId === curriculumItemId
+          ? { ...item, doubleSessionRequired: value }
+          : item,
+      ),
+    )
+  }
+
   const handleEditRemove = (curriculumItemId: number) => {
     setEditItems((prev) =>
       prev.filter((item) => item.curriculumItemId !== curriculumItemId),
@@ -232,7 +549,7 @@ export const CurriculumPage = () => {
     setEditError('')
     try {
       const originalMap = new Map(
-        selectedCurriculum.items.map((item) => [item.curriculumItemId, item]),
+        selectedCurriculum.items.map((item) => [Number(item.curriculumItemId), item]),
       )
       const updateRequests = editItems
         .map((item) => {
@@ -240,9 +557,13 @@ export const CurriculumPage = () => {
           if (!original) {
             return null
           }
-          if (item.weeklyHours !== original.weeklyHours) {
+          if (
+            item.weeklyHours !== original.weeklyHours ||
+            item.doubleSessionRequired !== original.doubleSessionRequired
+          ) {
             return curriculumItemsApi.update(item.curriculumItemId, {
               weeklyHours: item.weeklyHours,
+              doubleSessionRequired: item.doubleSessionRequired,
             })
           }
           return null
@@ -282,8 +603,14 @@ export const CurriculumPage = () => {
       return
     }
 
+    const trackName = draftTrackName.trim()
     createMutation.mutate({
-      gradeLevel: selectedGrade,
+      gradeLevel: selectedGrade.gradeLevel,
+      trackName: trackName.length > 0 ? trackName : undefined,
+      specializationAreaId:
+        trackName.length > 0 && draftSpecializationAreaId
+          ? draftSpecializationAreaId
+          : undefined,
       name: draftName.trim(),
       isActive: draftActive,
       items: draftItems.map((item) => ({
@@ -295,7 +622,12 @@ export const CurriculumPage = () => {
     })
   }
 
-  const canCreate = draftName.trim().length > 0 && draftItems.length > 0
+  const requiresTrack = Boolean(selectedGrade.trackName)
+  const canCreate =
+    draftName.trim().length > 0 &&
+    draftItems.length > 0 &&
+    (!requiresTrack ||
+      (draftTrackName.trim().length > 0 && Boolean(draftSpecializationAreaId)))
 
   return (
     <Box display="flex" flexDirection="column" gap={3}>
@@ -329,38 +661,117 @@ export const CurriculumPage = () => {
             Grados
           </Typography>
           <List dense>
-            {gradeLevels.map((grade) => {
-              const curriculum = curricula?.find((item) => item.gradeLevel === grade)
-              return (
-                <ListItemButton
-                  key={grade}
-                  selected={grade === selectedGrade}
-                  onClick={() => setSelectedGrade(grade)}
-                >
-                  <ListItemText
-                    primary={`Grado ${grade}`}
-                    secondary={
-                      curriculum
-                        ? `${curriculum.items?.length ?? 0} asignaturas`
-                        : 'Sin currículo'
-                    }
-                  />
-                </ListItemButton>
-              )
-            })}
+            <ListItemButton onClick={() => setIsPrimaryOpen((prev) => !prev)}>
+              <ListItemText primary="Primaria" secondary="Grados 1° a 5°" />
+              {isPrimaryOpen ? <ExpandLess /> : <ExpandMore />}
+            </ListItemButton>
+            <Collapse in={isPrimaryOpen} timeout="auto" unmountOnExit>
+              <List dense disablePadding>
+                {[1, 2, 3, 4, 5].map((grade) => renderGradeItem(grade))}
+              </List>
+            </Collapse>
+
+            <ListItemButton onClick={() => setIsSecondaryOpen((prev) => !prev)}>
+              <ListItemText primary="Secundaria" secondary="Grados 6° a 9°" />
+              {isSecondaryOpen ? <ExpandLess /> : <ExpandMore />}
+            </ListItemButton>
+            <Collapse in={isSecondaryOpen} timeout="auto" unmountOnExit>
+              <List dense disablePadding>
+                {[6, 7, 8, 9].map((grade) => renderGradeItem(grade))}
+              </List>
+            </Collapse>
+
+            <ListItemButton onClick={() => setIsSeniorOpen((prev) => !prev)}>
+              <ListItemText primary="Senior" secondary="Grados 10° y 11°" />
+              {isSeniorOpen ? <ExpandLess /> : <ExpandMore />}
+            </ListItemButton>
+            <Collapse in={isSeniorOpen} timeout="auto" unmountOnExit>
+              <List dense disablePadding>
+                {[10, 11].map((grade) => renderGradeItem(grade))}
+                <Divider sx={{ my: 1 }} />
+                {specializationGroups.length > 0 ? (
+                  <>
+                    <Typography variant="caption" color="text.secondary" sx={{ px: 3 }}>
+                      Especializaciones
+                    </Typography>
+                    {specializationGroups.map(([trackName, group]) => (
+                      <Box key={trackName} sx={{ mt: 1 }}>
+                        <Typography variant="subtitle2" sx={{ px: 3 }}>
+                          {trackName}
+                        </Typography>
+                        {group.map((specialization) => (
+                          <ListItemButton
+                            key={specialization.curriculumId}
+                            selected={
+                              selectedGrade.gradeLevel === specialization.gradeLevel &&
+                              selectedGrade.trackName === (specialization.trackName ?? null)
+                            }
+                            onClick={() =>
+                              setSelectedGrade({
+                                gradeLevel: specialization.gradeLevel,
+                                trackName: specialization.trackName ?? null,
+                              })
+                            }
+                            sx={{ pl: 5 }}
+                          >
+                            <ListItemText
+                              primary={`Grado ${specialization.gradeLevel}`}
+                              secondary={`${getVisibleItemsForCurriculum(specialization).length} asignaturas`}
+                            />
+                          </ListItemButton>
+                        ))}
+                      </Box>
+                    ))}
+                  </>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ px: 3 }}>
+                    Sin especializaciones registradas.
+                  </Typography>
+                )}
+              </List>
+            </Collapse>
           </List>
+          {canManageCurriculum ? (
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setSpecializationAreaId(toNumber(availableSpecializationAreas[0]?.areaId))
+                setIsSpecializationOpen(true)
+              }}
+              sx={{ mt: 2 }}
+            >
+              Nueva especialización
+            </Button>
+          ) : null}
         </Paper>
 
         <Paper sx={{ p: 3 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
             <Box>
-              <Typography variant="h5">Grado {selectedGrade}</Typography>
+              <Typography variant="h5">{selectedGradeLabel}</Typography>
               <Typography color="text.secondary">
                 {selectedCurriculum ? selectedCurriculum.name : 'Sin currículo configurado'}
               </Typography>
+              {selectedCurriculum?.trackName ? (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    Área de especialización:{' '}
+                    {selectedSpecializationArea?.name ??
+                      (selectedCurriculum?.specializationAreaId
+                        ? 'Área vinculada'
+                        : 'Sin vincular')}
+                  </Typography>
+                  {canManageCurriculum ? (
+                    <Button size="small" variant="outlined" onClick={handleOpenLinkArea}>
+                      {selectedSpecializationArea ? 'Cambiar área' : 'Vincular área'}
+                    </Button>
+                  ) : null}
+                </Stack>
+              ) : null}
             </Box>
             <Box sx={{ flexGrow: 1 }} />
-            {user?.role === 'admin' ? (
+            {canManageCurriculum ? (
               selectedCurriculum ? (
                 <Button variant="outlined" onClick={handleOpenEdit}>
                   Editar currículo
@@ -387,11 +798,11 @@ export const CurriculumPage = () => {
                   label={selectedCurriculum.isActive ? 'Activo' : 'Inactivo'}
                 />
                 <Typography variant="body2" color="text.secondary">
-                  {selectedCurriculum.items?.length ?? 0} asignaturas · {selectedTotalHours} horas/semana
+                  {visibleCurriculumItems.length} asignaturas · {selectedTotalHours} horas/semana
                 </Typography>
               </Stack>
 
-              {selectedCurriculum.items?.length ? (
+              {visibleCurriculumItems.length ? (
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
@@ -403,7 +814,7 @@ export const CurriculumPage = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {selectedCurriculum.items.map((item) => (
+                      {visibleCurriculumItems.map((item) => (
                         <TableRow key={item.curriculumItemId} hover>
                           <TableCell>
                             {item.subject?.name ?? `Asignatura ${item.subjectId}`}
@@ -426,10 +837,172 @@ export const CurriculumPage = () => {
         </Paper>
       </Box>
 
+      <Dialog open={isLinkAreaOpen} onClose={() => setIsLinkAreaOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Vincular área de especialización</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Selecciona el área que corresponde a esta especialización.
+          </Typography>
+          {specializationAreas.length > 0 ? (
+            <FormControl fullWidth>
+              <InputLabel id="link-area-label">Área de especialización</InputLabel>
+              <Select
+                labelId="link-area-label"
+                label="Área de especialización"
+                value={linkAreaId ?? ''}
+                onChange={(event) => setLinkAreaId(Number(event.target.value))}
+              >
+                {specializationAreas.map((area: SubjectArea) => {
+                  const areaId = toNumber(area.areaId)
+                  if (areaId === null) {
+                    return null
+                  }
+                  return (
+                    <MenuItem key={area.areaId} value={areaId}>
+                      {area.name}
+                    </MenuItem>
+                  )
+                })}
+              </Select>
+            </FormControl>
+          ) : (
+            <Alert severity="info">
+              Necesitas crear un área marcada como especialización antes de vincular el currículo.
+            </Alert>
+          )}
+          {specializationAreas.length === 0 ? (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setIsLinkAreaOpen(false)
+                navigate('/dashboard/subjects')
+              }}
+            >
+              Crear área de especialización
+            </Button>
+          ) : null}
+          {linkAreaMutation.isError ? (
+            <Alert severity="error">
+              {linkAreaMutation.error instanceof Error
+                ? linkAreaMutation.error.message
+                : 'No se pudo vincular el área.'}
+            </Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsLinkAreaOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (!selectedCurriculum || !linkAreaId) {
+                return
+              }
+              linkAreaMutation.mutate({
+                curriculumId: selectedCurriculum.curriculumId,
+                specializationAreaId: linkAreaId,
+              })
+            }}
+            disabled={!selectedCurriculum || !linkAreaId || linkAreaMutation.isPending}
+          >
+            Guardar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={isSpecializationOpen} onClose={() => setIsSpecializationOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nueva especialización</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Las especializaciones se crean para 10° y se extienden automáticamente a 11°.
+          </Typography>
+          <TextField label="Grado base" value="Grado 10 (se extiende a 11)" disabled />
+          {hasAvailableSpecializationAreas ? (
+            <List dense sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              {availableSpecializationAreas.map((area: SubjectArea) => {
+                const areaId = toNumber(area.areaId)
+                return (
+                  <ListItemButton
+                    key={area.areaId}
+                    selected={areaId !== null && specializationAreaId === areaId}
+                    onClick={() => {
+                      if (areaId !== null) {
+                        setSpecializationAreaId(areaId)
+                      }
+                    }}
+                    disabled={areaId === null}
+                  >
+                    <ListItemIcon>
+                      <Radio
+                        edge="start"
+                        checked={areaId !== null && specializationAreaId === areaId}
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={area.name}
+                      secondary="Disponible"
+                    />
+                  </ListItemButton>
+                )
+              })}
+            </List>
+          ) : hasSpecializationAreas ? (
+            <Alert severity="info">
+              Todas las áreas de especialización ya están asignadas. Crea una nueva área para continuar.
+            </Alert>
+          ) : (
+            <Alert severity="info">
+              Necesitas crear un área marcada como especialización antes de crear el currículo.
+              Usa el botón “Crear área” en la vista de Áreas para marcarla como especialización.
+            </Alert>
+          )}
+          {!hasAvailableSpecializationAreas ? (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setIsSpecializationOpen(false)
+                navigate('/dashboard/subjects')
+              }}
+            >
+              Crear área de especialización
+            </Button>
+          ) : null}
+          <TextField
+            label="Nombre de la especialización"
+            value={specializationName}
+            onChange={(event) => setSpecializationName(event.target.value)}
+            placeholder="Ej. Industrial, Ciencias, Informática"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsSpecializationOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateSpecialization}
+            disabled={!specializationName.trim() || !specializationAreaId}
+          >
+            Crear
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Nuevo currículo</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-          <TextField label="Grado" value={selectedGrade} disabled />
+          <TextField label="Grado" value={selectedGradeLabel} disabled />
+          {selectedGrade.trackName ? (
+            <TextField
+              label="Especialización"
+              value={draftTrackName}
+              onChange={(event) => setDraftTrackName(event.target.value)}
+            />
+          ) : null}
+          {selectedGrade.trackName ? (
+            <TextField
+              label="Área de especialización"
+              value={draftSpecializationArea?.name ?? 'Sin área vinculada'}
+              disabled
+            />
+          ) : null}
           <TextField
             label="Nombre del currículo"
             value={draftName}
@@ -461,7 +1034,7 @@ export const CurriculumPage = () => {
           <Stack spacing={2}>
             {draftItems.map((item, index) => {
               const selectedIds = new Set(draftItems.map((entry) => entry.subjectId))
-              const options = subjects.filter((subject) =>
+              const options = availableSubjectsForDraft.filter((subject) =>
                 subject.subjectId === item.subjectId || !selectedIds.has(subject.subjectId),
               )
 
@@ -543,7 +1116,7 @@ export const CurriculumPage = () => {
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={handleAddItem}
-            disabled={subjects.length === 0}
+            disabled={availableSubjectsForDraft.length === 0}
           >
             Agregar asignatura
           </Button>
@@ -556,7 +1129,7 @@ export const CurriculumPage = () => {
       <Dialog open={isEditOpen} onClose={() => setIsEditOpen(false)} fullWidth maxWidth="md">
         <DialogTitle>Editar currículo</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-          <TextField label="Grado" value={selectedGrade} disabled />
+          <TextField label="Grado" value={selectedGradeLabel} disabled />
           <Typography color="text.secondary">
             Ajusta las horas por semana o elimina asignaturas del currículo.
           </Typography>
@@ -585,9 +1158,20 @@ export const CurriculumPage = () => {
                       }
                       sx={{ maxWidth: 160 }}
                     />
-                    <Typography variant="body2" color="text.secondary">
-                      Doble sesión: {item.doubleSessionRequired ? 'Sí' : 'No'}
-                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={Boolean(item.doubleSessionRequired)}
+                          onChange={(event) =>
+                            handleEditDoubleSessionChange(
+                              item.curriculumItemId,
+                              event.target.checked,
+                            )
+                          }
+                        />
+                      }
+                      label="Requiere doble sesión"
+                    />
                     <Box sx={{ flexGrow: 1 }} />
                     <Button
                       color="error"
@@ -617,7 +1201,7 @@ export const CurriculumPage = () => {
           <Stack spacing={2}>
             {editNewItems.map((item, index) => {
               const selectedIds = new Set(editNewItems.map((entry) => entry.subjectId))
-              const options = subjects.filter((subject) => {
+              const options = availableSubjectsForEdit.filter((subject) => {
                 if (subject.subjectId === item.subjectId) {
                   return true
                 }
@@ -712,8 +1296,8 @@ export const CurriculumPage = () => {
             startIcon={<AddIcon />}
             onClick={handleAddEditItem}
             disabled={
-              subjects.length === 0 ||
-              editItems.length + editNewItems.length >= subjects.length
+              availableSubjectsForEdit.length === 0 ||
+              editItems.length + editNewItems.length >= availableSubjectsForEdit.length
             }
           >
             Agregar asignatura

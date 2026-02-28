@@ -6,6 +6,7 @@ export type SubjectArea = {
   areaId: number
   code: string | null
   name: string
+  isSpecialization?: boolean
   subjects?: Subject[]
 }
 
@@ -19,7 +20,10 @@ export type SubjectAreasQuery = {
 export type CreateSubjectAreaPayload = {
   code: string
   name: string
+  isSpecialization?: boolean
 }
+
+export type UpdateSubjectAreaPayload = Partial<CreateSubjectAreaPayload>
 
 export const subjectAreasApi = {
   list(params: SubjectAreasQuery = {}) {
@@ -37,5 +41,8 @@ export const subjectAreasApi = {
   },
   create(payload: CreateSubjectAreaPayload) {
     return apiClient.post<SubjectArea>('/subject-areas', payload)
+  },
+  update(areaId: number, payload: UpdateSubjectAreaPayload) {
+    return apiClient.patch<SubjectArea>(`/subject-areas/${areaId}`, payload)
   },
 }
