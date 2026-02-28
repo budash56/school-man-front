@@ -120,16 +120,19 @@ const EnrollmentWizardPage = () => {
   const classGroupHelperText = isClassGroupError
     ? getErrorMessage(classGroupError)
     : gradeLevel && !isLoadingClassGroups && filteredClassGroupOptions.length === 0
-      ? 'No hay secciones registradas para este grado.'
+      ? 'No hay secciones registradas para este grado. Puedes matricular sin sección y asignarla al cerrar matrículas.'
       : undefined
   const lastEnrollmentGroup = useMemo(() => {
     if (!lastEnrollment) {
       return null
     }
+    if (!lastEnrollment.classGroupId) {
+      return null
+    }
     return classGroupOptions.find((group) => group.classGroupId === lastEnrollment.classGroupId) ?? null
   }, [lastEnrollment, classGroupOptions])
   const isCheckDisabled = !nationalId.trim() || isSearching
-  const canConfirmExisting = Boolean(existingStudent && schoolYearId && classGroupId && !createEnrollmentMutation.isPending)
+  const canConfirmExisting = Boolean(existingStudent && schoolYearId && gradeLevel && !createEnrollmentMutation.isPending)
   const isNewFormValid = useMemo(() => {
     return Boolean(
       newStudentForm.nationalId.trim() &&
@@ -140,9 +143,9 @@ const EnrollmentWizardPage = () => {
         newStudentForm.guardianRelationship.trim() &&
         newStudentForm.guardianPhone.trim() &&
         schoolYearId &&
-        classGroupId,
+        gradeLevel,
     )
-  }, [newStudentForm, schoolYearId, classGroupId])
+  }, [newStudentForm, schoolYearId, gradeLevel])
 
   const resetWizardState = () => {
     setMode('idle')
@@ -274,14 +277,15 @@ const EnrollmentWizardPage = () => {
   }
 
   const handleExistingConfirmEnrollment = async () => {
-    if (!existingStudent || !schoolYearId || !classGroupId) {
+    if (!existingStudent || !schoolYearId || !gradeLevel) {
       return
     }
     try {
       await createEnrollmentMutation.mutateAsync({
         studentId: existingStudent.studentId,
         schoolYearId,
-        classGroupId,
+        gradeLevel,
+        ...(classGroupId ? { classGroupId } : {}),
       })
       navigate('/dashboard/enrollments')
     } catch (error) {
@@ -290,7 +294,7 @@ const EnrollmentWizardPage = () => {
   }
 
   const handleCreateStudentAndEnroll = async () => {
-    if (!schoolYearId || !classGroupId) {
+    if (!schoolYearId || !gradeLevel) {
       return
     }
     try {
@@ -301,7 +305,8 @@ const EnrollmentWizardPage = () => {
       await createEnrollmentMutation.mutateAsync({
         studentId: created.studentId,
         schoolYearId,
-        classGroupId,
+        gradeLevel,
+        ...(classGroupId ? { classGroupId } : {}),
       })
       navigate('/dashboard/enrollments')
     } catch (error) {
@@ -488,7 +493,11 @@ const EnrollmentWizardPage = () => {
                 Última matrícula: Año {lastEnrollment.schoolYearId} ·{' '}
                 {lastEnrollmentGroup
                   ? `Grado ${lastEnrollmentGroup.gradeLevel} · Sección ${lastEnrollmentGroup.section}`
-                  : `Sección ${lastEnrollment.classGroupId}`}
+                  : `Grado ${lastEnrollment.gradeLevel} · ${
+                      lastEnrollment.classGroupId
+                        ? `Sección ${lastEnrollment.classGroupId}`
+                        : 'Sin sección'
+                    }`}
               </Typography>
             ) : lastEnrollmentError ? (
               <Alert severity="warning">{lastEnrollmentError}</Alert>

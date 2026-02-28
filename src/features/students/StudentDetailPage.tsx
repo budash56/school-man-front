@@ -140,7 +140,7 @@ const StudentDetailPage = () => {
                     <ListItem key={enrollment.enrollmentId} divider>
                       <ListItemText
                         primary={`Matrícula #${enrollment.enrollmentId}`}
-                        secondary={`Grupo: ${enrollment.classGroupId} · Año escolar: ${enrollment.schoolYearId} · ${enrollment.active ? 'Activa' : 'Inactiva'}`}
+                        secondary={`Grado: ${enrollment.gradeLevel} · Sección: ${enrollment.classGroupId ?? 'Sin sección'} · Año escolar: ${enrollment.schoolYearId} · ${enrollment.active ? 'Activa' : 'Inactiva'}`}
                       />
                     </ListItem>
                   ))}

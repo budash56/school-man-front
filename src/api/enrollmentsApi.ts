@@ -4,7 +4,8 @@ import { type PaginatedResult } from '../types/pagination'
 export type Enrollment = {
   enrollmentId: number
   studentId: number
-  classGroupId: number
+  classGroupId: number | null
+  gradeLevel: number
   schoolYearId: number
   active: boolean
   enrolledAt: string | null
@@ -13,6 +14,7 @@ export type Enrollment = {
 export type EnrollmentsQuery = {
   studentId?: number
   classGroupId?: number
+  gradeLevel?: number
   schoolYearId?: number
   page?: number
   pageSize?: number
@@ -20,8 +22,9 @@ export type EnrollmentsQuery = {
 
 export type CreateEnrollmentPayload = {
   studentId: number
-  classGroupId: number
   schoolYearId: number
+  gradeLevel: number
+  classGroupId?: number
 }
 
 export const enrollmentsApi = {
@@ -30,6 +33,7 @@ export const enrollmentsApi = {
       query: {
         studentId: params.studentId,
         classGroupId: params.classGroupId,
+        gradeLevel: params.gradeLevel,
         schoolYearId: params.schoolYearId,
         page: params.page,
         pageSize: params.pageSize,
