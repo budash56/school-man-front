@@ -26,10 +26,13 @@ import { useClassGroupsQuery } from '../classGroups/useClassGroupsQuery'
 import { useStudentsByClassGroup } from './useStudentsByClassGroup'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { schoolYearsApi } from '../../api/schoolYearsApi'
+import { useAuth } from '../auth/AuthContext'
 
 const SchoolYearsStaticPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const canManage = user?.role === 'admin' || user?.role === 'coordinator'
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('')
   const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
   const [isInitOpen, setIsInitOpen] = useState(false)
@@ -129,10 +132,14 @@ const SchoolYearsStaticPage = () => {
           TODO: Hide this button when a school year is active, then re-enable it
           once the active year is closed.
         */}
-        <Button variant="contained" onClick={() => setIsInitOpen(true)}>
+        <Button variant="contained" onClick={() => setIsInitOpen(true)} disabled={!canManage}>
           Inicializar año escolar
         </Button>
       </Stack>
+
+      {!canManage ? (
+        <Alert severity="info">Modo solo lectura para tu rol.</Alert>
+      ) : null}
 
       {isLoadingYears && !schoolYears ? (
         <Box display="flex" justifyContent="center" mt={2}>
@@ -300,6 +307,7 @@ const SchoolYearsStaticPage = () => {
             onChange={(event) => setInitDate(event.target.value)}
             inputProps={{ max: todayString, min: `${today.getFullYear()}-01-01` }}
             helperText="Solo se permiten fechas pasadas dentro del año actual."
+            disabled={!canManage}
           />
           {!isInitDateValid && initDate ? (
             <Alert severity="error">
@@ -318,7 +326,7 @@ const SchoolYearsStaticPage = () => {
           <Button onClick={() => setIsInitOpen(false)}>Cancelar</Button>
           <Button
             variant="contained"
-            disabled={!isInitDateValid}
+            disabled={!isInitDateValid || !canManage}
             onClick={() => initMutation.mutate()}
           >
             Inicializar

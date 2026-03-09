@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { LoginPage } from './features/auth/LoginPage'
 import { ProtectedRoute } from './features/auth/ProtectedRoute'
+import { ChangePasswordPage } from './features/auth/ChangePasswordPage'
 import { DashboardLayout } from './layouts/DashboardLayout'
 import { DashboardHomePage } from './features/dashboard/DashboardHomePage'
 import { StudentsPage } from './features/students/StudentsPage'
@@ -21,6 +22,7 @@ function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
+        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<DashboardHomePage />} />
           <Route path="students" element={<StudentsPage />} />

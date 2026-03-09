@@ -22,6 +22,10 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
+  if (user.mustChangePassword && user.role !== 'admin' && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/login" replace />
   }

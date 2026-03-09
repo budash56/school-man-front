@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
 import { useClassGroupsQuery } from '../classGroups/useClassGroupsQuery'
+import { useAuth } from '../auth/AuthContext'
 import {
   studentsApi,
   type Student,
@@ -76,6 +77,8 @@ const splitGuardianRelationship = (value: string | null) => {
 }
 
 const EnrollmentWizardPage = () => {
+  const { user } = useAuth()
+  const canManage = user?.role === 'admin' || user?.role === 'coordinator'
   const navigate = useNavigate()
 
   const [selectedYearId, setSelectedYearId] = useState('')
@@ -172,6 +175,10 @@ const EnrollmentWizardPage = () => {
         gradeLevel,
     )
   }, [newStudentForm, schoolYearId, gradeLevel])
+
+  if (!canManage) {
+    return <Alert severity="error">No tienes permisos para crear matrículas.</Alert>
+  }
 
   const resetWizardState = () => {
     setMode('idle')

@@ -23,11 +23,19 @@ export type LoginPayload = {
   password: string
 }
 
+export type ChangePasswordPayload = {
+  currentPassword: string
+  newPassword: string
+}
+
 export const authApi = {
   login(payload: LoginPayload) {
     return apiClient.post<AuthResponse>('/auth/login', payload)
   },
   me() {
     return apiClient.get<SanitizedUser>('/auth/me')
+  },
+  changePassword(payload: ChangePasswordPayload) {
+    return apiClient.post<{ updated: true }>('/auth/change-password', payload)
   },
 }

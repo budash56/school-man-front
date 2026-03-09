@@ -520,21 +520,26 @@ export const SubjectsPage = () => {
     deleteSubjectMutation.mutate(subjectId)
   }
 
-  if (!canManage) {
-    return <Alert severity="info">Esta vista se habilitará para tu rol más adelante.</Alert>
-  }
-
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2}>
         <Typography variant="h4">Áreas</Typography>
         <Box sx={{ flexGrow: 1 }} />
         {!selectedArea ? (
-          <Button variant="contained" onClick={() => setIsAreaDialogOpen(true)} startIcon={<AddIcon />}>
+          <Button
+            variant="contained"
+            onClick={() => setIsAreaDialogOpen(true)}
+            startIcon={<AddIcon />}
+            disabled={!canManage}
+          >
             Crear área
           </Button>
         ) : null}
       </Stack>
+
+      {!canManage ? (
+        <Alert severity="info">Modo solo lectura para tu rol.</Alert>
+      ) : null}
 
       {isLoading ? (
         <Box display="flex" justifyContent="center" py={4}>
@@ -620,16 +625,22 @@ export const SubjectsPage = () => {
             </Box>
             <Box sx={{ flexGrow: 1 }} />
             <Stack direction="row" spacing={1}>
-              <Button variant="outlined" onClick={handleOpenEditAreaDialog}>
+              <Button variant="outlined" onClick={handleOpenEditAreaDialog} disabled={!canManage}>
                 Editar área
               </Button>
               <Button
                 variant="outlined"
                 onClick={() => setIsAssignTeacherOpen(true)}
+                disabled={!canManage}
               >
                 Agregar profesor
               </Button>
-              <Button variant="contained" onClick={handleOpenSubjectDialog} startIcon={<AddIcon />}>
+              <Button
+                variant="contained"
+                onClick={handleOpenSubjectDialog}
+                startIcon={<AddIcon />}
+                disabled={!canManage}
+              >
                 Crear asignatura
               </Button>
             </Stack>
@@ -730,6 +741,7 @@ export const SubjectsPage = () => {
                               <IconButton
                                 color="error"
                                 onClick={() => handleDeleteSubject(subject.subjectId)}
+                                disabled={!canManage}
                               >
                                 <DeleteIcon />
                               </IconButton>

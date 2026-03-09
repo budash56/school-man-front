@@ -43,6 +43,7 @@ import { classGroupsApi, type ManualAssignClassGroupResult } from '../../api/cla
 import { enrollmentsApi, type Enrollment } from '../../api/enrollmentsApi'
 import { schoolYearsApi } from '../../api/schoolYearsApi'
 import { canAssignClassroom, getCapacityStatus, getClassroomsQuery } from './assignmentValidation'
+import { useAuth } from '../auth/AuthContext'
 
 const useBuildingsQuery = (params: { q: string }) => {
   return useQuery({
@@ -104,7 +105,9 @@ const buildClassroomName = (buildingName: string, classrooms: Classroom[]) => {
 }
 
 export const ClassroomsPage = () => {
+  const { user } = useAuth()
   const queryClient = useQueryClient()
+  const canManage = user?.role === 'admin' || user?.role === 'coordinator'
   const [activeView, setActiveView] = useState<'buildings' | 'assign'>('buildings')
   const [buildingSearch, setBuildingSearch] = useState('')
   const [classroomSearch, setClassroomSearch] = useState('')
@@ -689,7 +692,12 @@ export const ClassroomsPage = () => {
         <Stack spacing={2}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="h5">Edificios</Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateBuilding}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openCreateBuilding}
+              disabled={!canManage}
+            >
               Nuevo
             </Button>
           </Stack>
@@ -736,7 +744,7 @@ export const ClassroomsPage = () => {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={openCreateClassroom}
-              disabled={buildings.length === 0}
+              disabled={buildings.length === 0 || !canManage}
             >
               Nueva aula
             </Button>
@@ -748,10 +756,10 @@ export const ClassroomsPage = () => {
             </Typography>
             {selectedBuilding ? (
               <Stack direction="row" spacing={1} alignItems="center">
-                <IconButton size="small" onClick={openEditBuilding}>
+                <IconButton size="small" onClick={openEditBuilding} disabled={!canManage}>
                   <EditIcon fontSize="small" />
                 </IconButton>
-                <IconButton size="small" color="error" onClick={handleDeleteBuilding}>
+                <IconButton size="small" color="error" onClick={handleDeleteBuilding} disabled={!canManage}>
                   <DeleteIcon fontSize="small" />
                 </IconButton>
               </Stack>
@@ -799,10 +807,15 @@ export const ClassroomsPage = () => {
                     <TableCell>{room.building?.name ?? 'N/A'}</TableCell>
                     <TableCell>{room.capacity}</TableCell>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={() => openEditClassroom(room)}>
+                      <IconButton size="small" onClick={() => openEditClassroom(room)} disabled={!canManage}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton size="small" color="error" onClick={() => handleDeleteClassroom(room.classroomId)}>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteClassroom(room.classroomId)}
+                        disabled={!canManage}
+                      >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </TableCell>
@@ -836,6 +849,10 @@ export const ClassroomsPage = () => {
           />
         </Stack>
 
+        {!canManage ? (
+          <Alert severity="info">Modo solo lectura para tu rol.</Alert>
+        ) : null}
+
         {!activeYear ? (
           <Alert severity="warning">No hay un año activo. Activa uno para poder asignar salones.</Alert>
         ) : null}
@@ -844,19 +861,21 @@ export const ClassroomsPage = () => {
           <Button
             variant={assignMode === 'create' ? 'contained' : 'outlined'}
             onClick={() => setAssignMode('create')}
+            disabled={!canManage}
           >
             Crear grupo
           </Button>
           <Button
             variant={assignMode === 'edit' ? 'contained' : 'outlined'}
             onClick={() => setAssignMode('edit')}
+            disabled={!canManage}
           >
             Editar aula
           </Button>
         </Stack>
 
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          <FormControl sx={{ minWidth: 120 }} size="small">
+          <FormControl sx={{ minWidth: 120 }} size="small" disabled={!canManage}>
             <InputLabel id="assign-grade-label">Grado</InputLabel>
             <Select
               labelId="assign-grade-label"
@@ -872,7 +891,11 @@ export const ClassroomsPage = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 120 }} size="small" disabled={sectionOptionsForMode.length === 0}>
+          <FormControl
+            sx={{ minWidth: 120 }}
+            size="small"
+            disabled={!canManage || sectionOptionsForMode.length === 0}
+          >
             <InputLabel id="assign-section-label">Sección</InputLabel>
             <Select
               labelId="assign-section-label"
@@ -893,7 +916,11 @@ export const ClassroomsPage = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 200 }} size="small" disabled={allowAllBuildings || assignBuildings.length === 0}>
+          <FormControl
+            sx={{ minWidth: 200 }}
+            size="small"
+            disabled={!canManage || allowAllBuildings || assignBuildings.length === 0}
+          >
             <InputLabel id="assign-building-label">Edificio</InputLabel>
             <Select
               labelId="assign-building-label"
@@ -909,7 +936,11 @@ export const ClassroomsPage = () => {
             </Select>
           </FormControl>
 
-          <FormControl sx={{ minWidth: 220 }} size="small" disabled={availableClassrooms.length === 0}>
+          <FormControl
+            sx={{ minWidth: 220 }}
+            size="small"
+            disabled={!canManage || availableClassrooms.length === 0}
+          >
             <InputLabel id="assign-classroom-label">Aula</InputLabel>
             <Select
               labelId="assign-classroom-label"
@@ -937,6 +968,7 @@ export const ClassroomsPage = () => {
               <Switch
                 checked={allowAllBuildings}
                 onChange={(event) => setAllowAllBuildings(event.target.checked)}
+                disabled={!canManage}
               />
             }
             label="Mostrar todos los edificios"
@@ -946,6 +978,7 @@ export const ClassroomsPage = () => {
               <Checkbox
                 checked={assignFixedLocation}
                 onChange={(event) => setAssignFixedLocation(event.target.checked)}
+                disabled={!canManage}
               />
             }
             label="Guardar ubicación fija"
@@ -1038,6 +1071,7 @@ export const ClassroomsPage = () => {
             variant="contained"
             onClick={handleAssignClassroom}
             disabled={
+              !canManage ||
               !canAssign ||
               manualAssignMutation.isPending ||
               updateGroupClassroomMutation.isPending ||
@@ -1175,6 +1209,7 @@ export const ClassroomsPage = () => {
   return (
     <Stack spacing={2}>
       {viewHeader}
+      {!canManage ? <Alert severity="info">Modo solo lectura para tu rol.</Alert> : null}
       {activeView === 'assign' ? assignView : buildingsView}
       {dialogs}
     </Stack>
