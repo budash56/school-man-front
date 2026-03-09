@@ -9,6 +9,12 @@ export type Enrollment = {
   schoolYearId: number
   active: boolean
   enrolledAt: string | null
+  student?: {
+    studentId: number
+    firstName: string
+    lastName: string
+    nationalId: string
+  } | null
 }
 
 export type EnrollmentsQuery = {
@@ -18,6 +24,8 @@ export type EnrollmentsQuery = {
   schoolYearId?: number
   page?: number
   pageSize?: number
+  active?: boolean
+  unassigned?: boolean
 }
 
 export type CreateEnrollmentPayload = {
@@ -37,6 +45,8 @@ export const enrollmentsApi = {
         schoolYearId: params.schoolYearId,
         page: params.page,
         pageSize: params.pageSize,
+        active: params.active,
+        unassigned: params.unassigned,
       },
     })
   },

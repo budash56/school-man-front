@@ -29,6 +29,7 @@ export type CreateStudentPayload = {
   address?: string | null
   guardianName: string
   guardianRelationship: string
+  guardianRelationshipOther?: string
   guardianPhone: string
 }
 

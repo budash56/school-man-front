@@ -30,6 +30,7 @@ const createEmptyStudentForm = (): CreateStudentPayload => ({
   address: '',
   guardianName: '',
   guardianRelationship: '',
+  guardianRelationshipOther: '',
   guardianPhone: '',
 })
 
@@ -52,6 +53,27 @@ const getErrorMessage = (error: unknown, fallback = 'Ocurrió un error') => {
 }
 
 const gradeOptions = Array.from({ length: 11 }, (_, index) => index + 1)
+const guardianRelationshipOptions = [
+  'Madre',
+  'Padre',
+  'Hermana',
+  'Hermano',
+  'Abuela',
+  'Abuelo',
+  'Tia',
+  'Tio',
+  'Otro',
+]
+
+const splitGuardianRelationship = (value: string | null) => {
+  if (!value) {
+    return { relationship: '', relationshipOther: '' }
+  }
+  if (guardianRelationshipOptions.includes(value)) {
+    return { relationship: value, relationshipOther: '' }
+  }
+  return { relationship: 'Otro', relationshipOther: value }
+}
 
 const EnrollmentWizardPage = () => {
   const navigate = useNavigate()
@@ -134,13 +156,17 @@ const EnrollmentWizardPage = () => {
   const isCheckDisabled = !nationalId.trim() || isSearching
   const canConfirmExisting = Boolean(existingStudent && schoolYearId && gradeLevel && !createEnrollmentMutation.isPending)
   const isNewFormValid = useMemo(() => {
+    const requiresOther = newStudentForm.guardianRelationship === 'Otro'
+    const relationshipValid = requiresOther
+      ? Boolean(newStudentForm.guardianRelationshipOther?.trim())
+      : Boolean(newStudentForm.guardianRelationship.trim())
     return Boolean(
       newStudentForm.nationalId.trim() &&
         newStudentForm.firstName.trim() &&
         newStudentForm.lastName.trim() &&
         newStudentForm.dob &&
         newStudentForm.guardianName.trim() &&
-        newStudentForm.guardianRelationship.trim() &&
+        relationshipValid &&
         newStudentForm.guardianPhone.trim() &&
         schoolYearId &&
         gradeLevel,
@@ -228,6 +254,7 @@ const EnrollmentWizardPage = () => {
       setIsEditingStudent(false)
       setEditStudentForm(null)
     } else {
+      const relationship = splitGuardianRelationship(existingStudent.guardianRelationship)
       setIsEditingStudent(true)
       setEditStudentForm({
         nationalId: existingStudent.nationalId,
@@ -236,7 +263,8 @@ const EnrollmentWizardPage = () => {
         dob: getDateInputValue(existingStudent.dob),
         address: formatExistingField(existingStudent.address),
         guardianName: formatExistingField(existingStudent.guardianName),
-        guardianRelationship: formatExistingField(existingStudent.guardianRelationship),
+        guardianRelationship: relationship.relationship,
+        guardianRelationshipOther: relationship.relationshipOther,
         guardianPhone: formatExistingField(existingStudent.guardianPhone),
       })
     }
@@ -247,14 +275,29 @@ const EnrollmentWizardPage = () => {
       return
     }
     const { name, value } = event.target
-    setEditStudentForm((prev) => (prev ? { ...prev, [name]: value } : prev))
+    setEditStudentForm((prev) => {
+      if (!prev) {
+        return prev
+      }
+      if (name === 'guardianRelationship') {
+        return {
+          ...prev,
+          guardianRelationship: value,
+          guardianRelationshipOther: value === 'Otro' ? prev.guardianRelationshipOther ?? '' : '',
+        }
+      }
+      return { ...prev, [name]: value }
+    })
   }
 
   const handleExistingSaveChanges = async () => {
     if (!existingStudent || !editStudentForm) {
       return
     }
-    const payload: UpdateStudentPayload = { ...editStudentForm }
+    const payload: UpdateStudentPayload = {
+      ...editStudentForm,
+      guardianRelationshipOther: editStudentForm.guardianRelationshipOther?.trim() || undefined,
+    }
     if (payload.dob === '') {
       delete payload.dob
     }
@@ -273,7 +316,16 @@ const EnrollmentWizardPage = () => {
 
   const handleNewStudentFieldChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target
-    setNewStudentForm((prev) => ({ ...prev, [name]: value }))
+    setNewStudentForm((prev) => {
+      if (name === 'guardianRelationship') {
+        return {
+          ...prev,
+          guardianRelationship: value,
+          guardianRelationshipOther: value === 'Otro' ? prev.guardianRelationshipOther ?? '' : '',
+        }
+      }
+      return { ...prev, [name]: value }
+    })
   }
 
   const handleExistingConfirmEnrollment = async () => {
@@ -301,6 +353,7 @@ const EnrollmentWizardPage = () => {
       const created = await createStudentMutation.mutateAsync({
         ...newStudentForm,
         nationalId: newStudentForm.nationalId.trim(),
+        guardianRelationshipOther: newStudentForm.guardianRelationshipOther?.trim() || undefined,
       })
       await createEnrollmentMutation.mutateAsync({
         studentId: created.studentId,
@@ -470,14 +523,30 @@ const EnrollmentWizardPage = () => {
                   InputProps={{ readOnly: !isEditingStudent }}
                   onChange={handleExistingFieldChange}
                 />
-                <TextField
-                  fullWidth
-                  label="Parentesco"
-                  name="guardianRelationship"
-                  value={isEditingStudent ? editStudentForm?.guardianRelationship ?? '' : formatExistingField(existingStudent.guardianRelationship)}
-                  InputProps={{ readOnly: !isEditingStudent }}
-                  onChange={handleExistingFieldChange}
-                />
+                {isEditingStudent ? (
+                  <TextField
+                    select
+                    fullWidth
+                    label="Parentesco"
+                    name="guardianRelationship"
+                    value={editStudentForm?.guardianRelationship ?? ''}
+                    onChange={handleExistingFieldChange}
+                  >
+                    {guardianRelationshipOptions.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : (
+                  <TextField
+                    fullWidth
+                    label="Parentesco"
+                    name="guardianRelationship"
+                    value={formatExistingField(existingStudent.guardianRelationship)}
+                    InputProps={{ readOnly: true }}
+                  />
+                )}
                 <TextField
                   fullWidth
                   label="Teléfono"
@@ -487,6 +556,15 @@ const EnrollmentWizardPage = () => {
                   onChange={handleExistingFieldChange}
                 />
               </Stack>
+              {isEditingStudent && editStudentForm?.guardianRelationship === 'Otro' ? (
+                <TextField
+                  fullWidth
+                  label="Parentesco (Otro)"
+                  name="guardianRelationshipOther"
+                  value={editStudentForm.guardianRelationshipOther ?? ''}
+                  onChange={handleExistingFieldChange}
+                />
+              ) : null}
             </Stack>
             {lastEnrollment ? (
               <Typography color="text.secondary">
@@ -581,12 +659,19 @@ const EnrollmentWizardPage = () => {
                 onChange={handleNewStudentFieldChange}
               />
               <TextField
+                select
                 fullWidth
                 label="Parentesco"
                 name="guardianRelationship"
                 value={newStudentForm.guardianRelationship}
                 onChange={handleNewStudentFieldChange}
-              />
+              >
+                {guardianRelationshipOptions.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </TextField>
               <TextField
                 fullWidth
                 label="Teléfono"
@@ -595,6 +680,15 @@ const EnrollmentWizardPage = () => {
                 onChange={handleNewStudentFieldChange}
               />
             </Stack>
+            {newStudentForm.guardianRelationship === 'Otro' ? (
+              <TextField
+                fullWidth
+                label="Parentesco (Otro)"
+                name="guardianRelationshipOther"
+                value={newStudentForm.guardianRelationshipOther ?? ''}
+                onChange={handleNewStudentFieldChange}
+              />
+            ) : null}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <Button
                 variant="contained"

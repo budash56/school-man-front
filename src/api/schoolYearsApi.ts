@@ -8,6 +8,17 @@ export type SchoolYear = {
   isActive: boolean
 }
 
+export type CompleteSchoolYearResult = {
+  schoolYearId: number
+  nextSchoolYearId: number | null
+  closedAt: string
+  force: boolean
+  enrollmentsClosed: number
+  studentsPromoted: number
+  studentsGraduated: number
+  studentsAlreadyEnrolled: number
+}
+
 export type SchoolYearsQuery = {
   active?: boolean
   name?: string
@@ -24,5 +35,8 @@ export const schoolYearsApi = {
   },
   rollover(payload: { startDate: string; endDate: string; name?: string }) {
     return apiClient.post<{ previous: SchoolYear | null; current: SchoolYear }>('/school-years/rollover', payload)
+  },
+  complete(schoolYearId: number, payload: { force?: boolean }) {
+    return apiClient.post<CompleteSchoolYearResult>(`/school-years/${schoolYearId}/complete`, payload)
   },
 }
