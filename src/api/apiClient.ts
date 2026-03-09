@@ -109,9 +109,57 @@ async function request<T>(method: HttpMethod, path: string, options?: RequestOpt
   return data as T
 }
 
+async function requestForm<T>(method: HttpMethod, path: string, formData: FormData, query?: QueryParams): Promise<T> {
+  const url = buildUrl(path, query)
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  }
+
+  const token = getAccessToken()
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const init: RequestInit = {
+    method,
+    headers,
+    body: formData,
+  }
+
+  let response: Response
+  try {
+    response = await fetch(url, init)
+  } catch (error) {
+    console.error('API request failed', { url, error })
+    throw new ApiError(0, 'No se pudo conectar con el servidor. Intenta de nuevo.', error)
+  }
+
+  const responseText = await response.text()
+  let data: unknown = undefined
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      data = responseText
+    }
+  }
+
+  if (!response.ok) {
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message?: unknown }).message ?? response.statusText)
+      : response.statusText
+    throw new ApiError(response.status, message || 'Request failed', data)
+  }
+
+  return data as T
+}
+
 export const apiClient = {
   get: <T>(path: string, options?: { query?: QueryParams }) => request<T>('GET', path, options),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, { body }),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, { body }),
   del: <T>(path: string) => request<T>('DELETE', path),
+  postForm: <T>(path: string, formData: FormData, query?: QueryParams) =>
+    requestForm<T>('POST', path, formData, query),
 }

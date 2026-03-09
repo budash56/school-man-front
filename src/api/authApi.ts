@@ -10,6 +10,7 @@ export type SanitizedUser = {
   lastName: string | null
   email: string | null
   phone: string | null
+  mustChangePassword: boolean
 }
 
 export type AuthResponse = {

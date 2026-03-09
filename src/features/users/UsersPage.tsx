@@ -24,7 +24,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { subjectAreasApi } from '../../api/subjectAreasApi'
 import { teacherSubjectsApi } from '../../api/teacherSubjectsApi'
-import { usersApi, type CreateUserPayload, type User } from '../../api/usersApi'
+import { usersApi, type BulkImportUsersResult, type CreateUserPayload, type User } from '../../api/usersApi'
 import { useAuth } from '../auth/AuthContext'
 import { useLocation } from 'react-router-dom'
 import { subjectsApi } from '../../api/subjectsApi'
@@ -68,6 +68,10 @@ export const UsersPage = () => {
   const [selectedRole, setSelectedRole] = useState<RoleValue>('teacher')
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isBulkOpen, setIsBulkOpen] = useState(false)
+  const [bulkFile, setBulkFile] = useState<File | null>(null)
+  const [bulkResult, setBulkResult] = useState<BulkImportUsersResult | null>(null)
+  const [bulkError, setBulkError] = useState('')
   const [draftUser, setDraftUser] = useState<CreateUserPayload>(emptyUser)
   const [selectedAreas, setSelectedAreas] = useState<number[]>([])
   const [areaError, setAreaError] = useState('')
@@ -199,6 +203,17 @@ export const UsersPage = () => {
     },
   })
 
+  const bulkImportMutation = useMutation({
+    mutationFn: (file: File) => usersApi.bulkImport(file),
+    onSuccess: (result) => {
+      setBulkResult(result)
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (error: Error) => {
+      setBulkError(error.message || 'Error al importar.')
+    },
+  })
+
   const assignSubjectsMutation = useMutation({
     mutationFn: async (payload: { teacherId: string; subjectIds: number[] }) => {
       const unique = Array.from(new Set(payload.subjectIds))
@@ -244,6 +259,32 @@ export const UsersPage = () => {
     setSelectedAreas([])
     setAreaError('')
     setIsCreateOpen(true)
+  }
+
+  const handleOpenBulk = () => {
+    setBulkFile(null)
+    setBulkResult(null)
+    setBulkError('')
+    setIsBulkOpen(true)
+  }
+
+  const handleCloseBulk = () => {
+    if (bulkImportMutation.isPending) {
+      return
+    }
+    setIsBulkOpen(false)
+    setBulkFile(null)
+    setBulkResult(null)
+    setBulkError('')
+  }
+
+  const handleBulkSubmit = () => {
+    if (!bulkFile) {
+      setBulkError('Selecciona un archivo CSV o Excel.')
+      return
+    }
+    setBulkError('')
+    bulkImportMutation.mutate(bulkFile)
   }
 
   const handleAreaChange = (value: number[]) => {
@@ -444,6 +485,9 @@ export const UsersPage = () => {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
         <Typography variant="h5">Usuarios</Typography>
         <Box sx={{ flexGrow: 1 }} />
+        <Button variant="outlined" onClick={handleOpenBulk}>
+          Importar docentes
+        </Button>
         <Button variant="contained" onClick={handleOpenCreate}>
           Crear usuario
         </Button>
@@ -511,6 +555,88 @@ export const UsersPage = () => {
           ))}
         </List>
       ) : null}
+
+      <Dialog open={isBulkOpen} onClose={handleCloseBulk} fullWidth maxWidth="sm">
+        <DialogTitle>Importar docentes</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Archivo CSV o Excel con columnas: documento, nombres, apellidos, correo. Opcional: usuario, teléfono.
+          </Typography>
+          <Button variant="outlined" component="label">
+            Seleccionar archivo
+            <input
+              hidden
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                setBulkFile(file)
+                setBulkResult(null)
+                setBulkError('')
+              }}
+            />
+          </Button>
+          {bulkFile ? (
+            <Typography variant="body2">Archivo seleccionado: {bulkFile.name}</Typography>
+          ) : null}
+          {bulkError ? <Alert severity="error">{bulkError}</Alert> : null}
+          {bulkImportMutation.isPending ? (
+            <Box display="flex" alignItems="center" gap={2}>
+              <CircularProgress size={20} />
+              <Typography variant="body2">Importando...</Typography>
+            </Box>
+          ) : null}
+          {bulkResult ? (
+            <Box display="flex" flexDirection="column" gap={2}>
+              <Alert severity="success">
+                Importación completa. Creados: {bulkResult.created} · Omitidos: {bulkResult.skipped} · Total filas: {bulkResult.total}
+              </Alert>
+              {bulkResult.credentials.length > 0 ? (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Credenciales temporales
+                  </Typography>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Stack spacing={1}>
+                      {bulkResult.credentials.map((cred) => (
+                        <Typography key={cred.nationalId} variant="body2">
+                          {cred.nationalId} · {cred.username} · {cred.tempPassword}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Box>
+              ) : null}
+              {bulkResult.errors.length > 0 ? (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Errores encontrados
+                  </Typography>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Stack spacing={1}>
+                      {bulkResult.errors.map((item, index) => (
+                        <Typography key={`${item.row}-${index}`} variant="body2" color="error">
+                          Fila {item.row}: {item.message}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Paper>
+                </Box>
+              ) : null}
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseBulk}>Cerrar</Button>
+          <Button
+            variant="contained"
+            onClick={handleBulkSubmit}
+            disabled={!bulkFile || bulkImportMutation.isPending}
+          >
+            Importar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Nuevo usuario</DialogTitle>

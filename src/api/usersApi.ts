@@ -32,6 +32,20 @@ export type CreateUserPayload = {
   phone?: string
 }
 
+export type BulkImportCredential = {
+  nationalId: string
+  username: string
+  tempPassword: string
+}
+
+export type BulkImportUsersResult = {
+  total: number
+  created: number
+  skipped: number
+  errors: { row: number; message: string }[]
+  credentials: BulkImportCredential[]
+}
+
 export const usersApi = {
   list(params: UsersQuery = {}) {
     return apiClient.get<PaginatedResult<User>>('/users', {
@@ -49,5 +63,10 @@ export const usersApi = {
   },
   create(payload: CreateUserPayload) {
     return apiClient.post<AuthResponse>('/auth/signup', payload)
+  },
+  bulkImport(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return apiClient.postForm<BulkImportUsersResult>('/users/bulk-import', formData)
   },
 }
