@@ -11,6 +11,7 @@ export type Student = {
   guardianName: string | null
   guardianRelationship: string | null
   guardianPhone: string | null
+  gender: 'Femenino' | 'Masculino' | 'No Binario'
   isActive: boolean
 }
 
@@ -31,6 +32,7 @@ export type CreateStudentPayload = {
   guardianRelationship: string
   guardianRelationshipOther?: string
   guardianPhone: string
+  gender: 'Femenino' | 'Masculino' | 'No Binario'
 }
 
 export type UpdateStudentPayload = Partial<CreateStudentPayload>

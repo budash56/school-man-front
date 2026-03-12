@@ -107,6 +107,9 @@ const StudentDetailPage = () => {
             <Typography variant="body1">
               <strong>Fecha de nacimiento:</strong> {formatDate(student.dob)}
             </Typography>
+            <Typography variant="body1">
+              <strong>Género:</strong> {student.gender}
+            </Typography>
             {student.address ? (
               <Typography variant="body1">
                 <strong>Dirección:</strong> {student.address}

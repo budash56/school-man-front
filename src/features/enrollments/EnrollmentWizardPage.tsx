@@ -23,7 +23,11 @@ import {
 } from '../../api/studentsApi'
 import { enrollmentsApi, type CreateEnrollmentPayload, type Enrollment } from '../../api/enrollmentsApi'
 
-const createEmptyStudentForm = (): CreateStudentPayload => ({
+type StudentFormState = Omit<CreateStudentPayload, 'gender'> & {
+  gender: '' | CreateStudentPayload['gender']
+}
+
+const createEmptyStudentForm = (): StudentFormState => ({
   nationalId: '',
   firstName: '',
   lastName: '',
@@ -33,6 +37,7 @@ const createEmptyStudentForm = (): CreateStudentPayload => ({
   guardianRelationship: '',
   guardianRelationshipOther: '',
   guardianPhone: '',
+  gender: '',
 })
 
 type WizardMode = 'idle' | 'existing' | 'new'
@@ -65,6 +70,11 @@ const guardianRelationshipOptions = [
   'Tio',
   'Otro',
 ]
+const genderOptions: Array<CreateStudentPayload['gender']> = [
+  'Femenino',
+  'Masculino',
+  'No Binario',
+]
 
 const splitGuardianRelationship = (value: string | null) => {
   if (!value) {
@@ -89,7 +99,7 @@ const EnrollmentWizardPage = () => {
   const [existingStudent, setExistingStudent] = useState<Student | null>(null)
   const [isEditingStudent, setIsEditingStudent] = useState(false)
   const [editStudentForm, setEditStudentForm] = useState<UpdateStudentPayload | null>(null)
-  const [newStudentForm, setNewStudentForm] = useState<CreateStudentPayload>(createEmptyStudentForm)
+  const [newStudentForm, setNewStudentForm] = useState<StudentFormState>(createEmptyStudentForm)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [lastEnrollment, setLastEnrollment] = useState<Enrollment | null>(null)
@@ -171,6 +181,7 @@ const EnrollmentWizardPage = () => {
         newStudentForm.guardianName.trim() &&
         relationshipValid &&
         newStudentForm.guardianPhone.trim() &&
+        newStudentForm.gender &&
         schoolYearId &&
         gradeLevel,
     )
@@ -273,6 +284,7 @@ const EnrollmentWizardPage = () => {
         guardianRelationship: relationship.relationship,
         guardianRelationshipOther: relationship.relationshipOther,
         guardianPhone: formatExistingField(existingStudent.guardianPhone),
+        gender: existingStudent.gender,
       })
     }
   }
@@ -353,15 +365,17 @@ const EnrollmentWizardPage = () => {
   }
 
   const handleCreateStudentAndEnroll = async () => {
-    if (!schoolYearId || !gradeLevel) {
+    if (!schoolYearId || !gradeLevel || !newStudentForm.gender) {
       return
     }
     try {
-      const created = await createStudentMutation.mutateAsync({
+      const payload: CreateStudentPayload = {
         ...newStudentForm,
         nationalId: newStudentForm.nationalId.trim(),
         guardianRelationshipOther: newStudentForm.guardianRelationshipOther?.trim() || undefined,
-      })
+        gender: newStudentForm.gender,
+      }
+      const created = await createStudentMutation.mutateAsync(payload)
       await createEnrollmentMutation.mutateAsync({
         studentId: created.studentId,
         schoolYearId,
@@ -494,6 +508,33 @@ const EnrollmentWizardPage = () => {
                   InputProps={{ readOnly: !isEditingStudent }}
                   onChange={handleExistingFieldChange}
                 />
+                {isEditingStudent ? (
+                  <TextField
+                    select
+                    fullWidth
+                    label="Género"
+                    name="gender"
+                    value={editStudentForm?.gender ?? ''}
+                    onChange={handleExistingFieldChange}
+                  >
+                    <MenuItem value="" disabled>
+                      Selecciona un género
+                    </MenuItem>
+                    {genderOptions.map((option) => (
+                      <MenuItem key={option} value={option}>
+                        {option}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                ) : (
+                  <TextField
+                    fullWidth
+                    label="Género"
+                    name="gender"
+                    value={existingStudent.gender}
+                    InputProps={{ readOnly: true }}
+                  />
+                )}
               </Stack>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <TextField
@@ -634,6 +675,21 @@ const EnrollmentWizardPage = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Stack>
+            <TextField
+              select
+              fullWidth
+              label="Género"
+              name="gender"
+              value={newStudentForm.gender}
+              onChange={handleNewStudentFieldChange}
+            >
+              <MenuItem value="">Selecciona un género</MenuItem>
+              {genderOptions.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <TextField
                 fullWidth

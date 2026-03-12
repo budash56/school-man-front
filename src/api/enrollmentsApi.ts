@@ -14,7 +14,7 @@ export type Enrollment = {
     firstName: string
     lastName: string
     nationalId: string
-    gender?: string | null
+    gender?: 'Femenino' | 'Masculino' | 'No Binario' | null
     sex?: string | null
   } | null
 }
