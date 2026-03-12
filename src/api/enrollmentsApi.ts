@@ -14,6 +14,8 @@ export type Enrollment = {
     firstName: string
     lastName: string
     nationalId: string
+    gender?: string | null
+    sex?: string | null
   } | null
 }
 

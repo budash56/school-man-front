@@ -275,6 +275,31 @@ export const ClassroomsPage = () => {
   })
 
   const enrollmentList = enrollmentsResult?.data ?? []
+  const unassignedStats = useMemo(() => {
+    const stats = {
+      total: enrollmentList.length,
+      male: 0,
+      female: 0,
+      unknown: 0,
+    }
+
+    enrollmentList.forEach((enrollment) => {
+      const raw = enrollment.student?.gender ?? enrollment.student?.sex ?? ''
+      const normalized = String(raw).trim().toLowerCase()
+
+      if (['m', 'male', 'masculino', 'hombre', 'masc'].includes(normalized)) {
+        stats.male += 1
+        return
+      }
+      if (['f', 'female', 'femenino', 'mujer', 'fem'].includes(normalized)) {
+        stats.female += 1
+        return
+      }
+      stats.unknown += 1
+    })
+
+    return stats
+  }, [enrollmentList])
 
   const { data: assignedEnrollmentsResult, isLoading: isLoadingAssignedEnrollments } = useQuery({
     queryKey: ['enrollments', 'class-group', selectedGroup?.classGroupId],
@@ -1008,7 +1033,11 @@ export const ClassroomsPage = () => {
           <>
             <Divider />
             <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="subtitle1">Estudiantes sin grupo</Typography>
+              <Typography variant="subtitle1">
+                Estudiantes sin grupo {unassignedStats.total}, Masculino {unassignedStats.male}, Femenino{' '}
+                {unassignedStats.female}
+                {unassignedStats.unknown > 0 ? `, Sin dato ${unassignedStats.unknown}` : ''}
+              </Typography>
               <Box sx={{ flexGrow: 1 }} />
               <Button size="small" onClick={handleToggleAllEnrollments} disabled={enrollmentList.length === 0}>
                 {assignSelectedCount === enrollmentList.length ? 'Quitar selección' : 'Seleccionar todos'}
