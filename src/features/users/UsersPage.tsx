@@ -76,6 +76,7 @@ export const UsersPage = () => {
   const [selectedAreas, setSelectedAreas] = useState<number[]>([])
   const [areaError, setAreaError] = useState('')
   const [isAssignOpen, setIsAssignOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('')
   const emailIsValid = Boolean(draftUser.email?.trim())
   const tempPassword = useMemo(
@@ -204,6 +205,15 @@ export const UsersPage = () => {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: usersApi.remove,
+    onSuccess: () => {
+      setIsDeleteOpen(false)
+      setSelectedUserId(null)
+      refetch()
+    },
+  })
+
   const bulkImportMutation = useMutation({
     mutationFn: (file: File) => usersApi.bulkImport(file),
     onSuccess: (result) => {
@@ -249,9 +259,11 @@ export const UsersPage = () => {
     }
   }, [location.state])
 
-  if (user?.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'coordinator')) {
     return (
-      <Alert severity="error">Solo los administradores pueden gestionar usuarios.</Alert>
+      <Alert severity="error">
+        Solo administradores y coordinadores pueden gestionar usuarios.
+      </Alert>
     )
   }
 
@@ -347,6 +359,12 @@ export const UsersPage = () => {
             ← Volver
           </Button>
           <Typography variant="h5">Perfil de usuario</Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          {user?.role === 'admin' || user?.role === 'coordinator' ? (
+            <Button color="error" variant="outlined" onClick={() => setIsDeleteOpen(true)}>
+              Eliminar usuario
+            </Button>
+          ) : null}
         </Stack>
 
         {isLoadingSelectedUser ? (
@@ -475,6 +493,38 @@ export const UsersPage = () => {
               disabled={selectedSubjectId === '' || assignSubjectMutation.isPending}
             >
               Guardar
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} fullWidth maxWidth="xs">
+          <DialogTitle>Eliminar usuario</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2">
+              Esta acción eliminará el usuario seleccionado. ¿Deseas continuar?
+            </Typography>
+            {deleteMutation.isError ? (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {deleteMutation.error instanceof Error
+                  ? deleteMutation.error.message
+                  : 'No se pudo eliminar el usuario.'}
+              </Alert>
+            ) : null}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
+            <Button
+              color="error"
+              variant="contained"
+              onClick={() => {
+                if (!selectedUserId) {
+                  return
+                }
+                deleteMutation.mutate(selectedUserId)
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              Eliminar
             </Button>
           </DialogActions>
         </Dialog>

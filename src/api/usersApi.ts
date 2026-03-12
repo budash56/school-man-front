@@ -64,6 +64,9 @@ export const usersApi = {
   create(payload: CreateUserPayload) {
     return apiClient.post<AuthResponse>('/auth/signup', payload)
   },
+  remove(nationalId: string) {
+    return apiClient.delete<{ deleted: true }>(`/users/${nationalId}`)
+  },
   bulkImport(file: File) {
     const formData = new FormData()
     formData.append('file', file)
