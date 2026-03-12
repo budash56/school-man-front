@@ -63,6 +63,11 @@ export const CurriculumPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canManageCurriculum = user?.role === 'admin' || user?.role === 'coordinator'
+
+  if (user?.role === 'teacher') {
+    return <Alert severity="info">El currículo no está disponible para docentes.</Alert>
+  }
+
   const [selectedGrade, setSelectedGrade] = useState<GradeSelection>({ gradeLevel: 10, trackName: null })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)

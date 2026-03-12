@@ -1,4 +1,4 @@
-import { Box, Button, Chip, FormControlLabel, Paper, Stack, Switch, Typography } from '@mui/material'
+import { Alert, Box, Button, Chip, FormControlLabel, Paper, Stack, Switch, Typography } from '@mui/material'
 import { CheckCircle as CheckCircleIcon, Lock as LockIcon } from '@mui/icons-material'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -21,6 +21,10 @@ export const EnrollmentsPage = () => {
     }
     window.localStorage.setItem('enrollmentPeriodClosed', String(isEnrollmentClosed))
   }, [isEnrollmentClosed])
+
+  if (user?.role === 'teacher') {
+    return <Alert severity="info">Matrículas no están disponibles para docentes.</Alert>
+  }
 
   return (
     <Box display="flex" flexDirection="column" gap={3} alignItems="center">

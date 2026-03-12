@@ -108,6 +108,10 @@ export const ClassroomsPage = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
+
+  if (user?.role === 'teacher') {
+    return <Alert severity="info">Aulas no están disponibles para docentes.</Alert>
+  }
   const [activeView, setActiveView] = useState<'buildings' | 'assign'>('buildings')
   const [buildingSearch, setBuildingSearch] = useState('')
   const [classroomSearch, setClassroomSearch] = useState('')

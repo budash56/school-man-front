@@ -80,6 +80,18 @@ export const DashboardLayout = () => {
       // Future version: enable timetable generator when ready.
     ]
 
+    if (user?.role === 'teacher') {
+      return items.filter(
+        (item) =>
+          ![
+            '/dashboard/enrollments',
+            '/dashboard/curriculum',
+            '/dashboard/class-groups',
+            '/dashboard/classrooms',
+          ].includes(item.path),
+      )
+    }
+
     if (user?.role === 'admin') {
       items.splice(3, 0, { label: 'Usuarios', path: '/dashboard/users', icon: <ManageAccountsIcon /> })
     }

@@ -33,6 +33,11 @@ const SchoolYearsStaticPage = () => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
+
+  if (user?.role === 'teacher') {
+    return <Alert severity="info">Años escolares no están disponibles para docentes.</Alert>
+  }
+
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('')
   const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
   const [isInitOpen, setIsInitOpen] = useState(false)

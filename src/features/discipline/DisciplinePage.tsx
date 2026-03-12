@@ -12,10 +12,13 @@ import {
 } from '@mui/material'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
+import { useQuery } from '@tanstack/react-query'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
 import { useClassGroupsQuery } from '../classGroups/useClassGroupsQuery'
 import { useStudentsByClassGroup } from '../schoolYears/useStudentsByClassGroup'
 import { useStudentDiscipline } from '../students/useStudentDiscipline'
+import { coursesApi } from '../../api/coursesApi'
+import { useAuth } from '../auth/AuthContext'
 
 const getGroupLabel = (
   group?: { code?: string; gradeLevel?: number; section?: string },
@@ -34,6 +37,7 @@ const getGroupLabel = (
 }
 
 export const DisciplinePage = () => {
+  const { user } = useAuth()
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('')
   const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0)
@@ -75,8 +79,37 @@ export const DisciplinePage = () => {
     error: classGroupError,
   } = useClassGroupsQuery(classGroupQueryParams)
 
-  const groupsByGrade = classGroups
-    ? classGroups.data.reduce<Record<string, typeof classGroups.data>>((acc, group) => {
+  const teacherNumericId = useMemo(() => {
+    if (user?.role !== 'teacher') {
+      return null
+    }
+    const value = Number(user.nationalId)
+    return Number.isFinite(value) ? value : null
+  }, [user])
+
+  const { data: teacherCourses } = useQuery({
+    queryKey: ['teacher-courses', user?.nationalId, schoolYearId],
+    queryFn: () => {
+      if (!teacherNumericId || !schoolYearId) {
+        return Promise.resolve([])
+      }
+      return coursesApi.list({ teacherId: teacherNumericId, schoolYearId })
+    },
+    enabled: user?.role === 'teacher' && Boolean(teacherNumericId) && Boolean(schoolYearId),
+  })
+
+  const allowedClassGroupIds = useMemo(() => {
+    return new Set((teacherCourses ?? []).map((course) => course.classGroupId))
+  }, [teacherCourses])
+
+  const visibleClassGroups = classGroups
+    ? classGroups.data.filter((group) =>
+        user?.role === 'teacher' ? allowedClassGroupIds.has(group.classGroupId) : true,
+      )
+    : []
+
+  const groupsByGrade = visibleClassGroups.length > 0
+    ? visibleClassGroups.reduce<Record<string, typeof visibleClassGroups>>((acc, group) => {
         if (!acc[group.gradeLevel]) {
           acc[group.gradeLevel] = []
         }
@@ -85,8 +118,8 @@ export const DisciplinePage = () => {
       }, {})
     : {}
 
-  const selectedGroup = classGroupId && classGroups
-    ? classGroups.data.find((group) => group.classGroupId === classGroupId)
+  const selectedGroup = classGroupId && visibleClassGroups.length > 0
+    ? visibleClassGroups.find((group) => group.classGroupId === classGroupId)
     : undefined
 
   const {
@@ -99,6 +132,15 @@ export const DisciplinePage = () => {
   useEffect(() => {
     setCurrentStudentIndex(0)
   }, [classGroupId])
+
+  useEffect(() => {
+    if (user?.role !== 'teacher') {
+      return
+    }
+    if (selectedClassGroupId && !allowedClassGroupIds.has(Number(selectedClassGroupId))) {
+      setSelectedClassGroupId('')
+    }
+  }, [allowedClassGroupIds, selectedClassGroupId, user?.role])
 
   useEffect(() => {
     if (!students || students.length === 0) {
@@ -195,10 +237,14 @@ export const DisciplinePage = () => {
             {isClassGroupError ? (
               <Alert severity="error">{classGroupError?.message || 'Error cargando grupos.'}</Alert>
             ) : null}
-            {classGroups && classGroups.data.length === 0 && !isLoadingClassGroups ? (
-              <Alert severity="info">No hay grupos registrados para este año escolar.</Alert>
+            {visibleClassGroups.length === 0 && !isLoadingClassGroups ? (
+              <Alert severity="info">
+                {user?.role === 'teacher'
+                  ? 'No tienes grupos asignados para este año.'
+                  : 'No hay grupos registrados para este año escolar.'}
+              </Alert>
             ) : null}
-            {classGroups && classGroups.data.length > 0 ? (
+            {visibleClassGroups.length > 0 ? (
               <Box
                 sx={{
                   display: 'grid',

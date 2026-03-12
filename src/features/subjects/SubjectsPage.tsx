@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -297,17 +297,47 @@ export const SubjectsPage = () => {
   })
   const professors = professorsResult?.data ?? []
 
-  const filteredAreas = useMemo(() => {
+  const { data: teacherAssignments } = useQuery({
+    queryKey: ['teacher-subjects', user?.nationalId],
+    queryFn: () => {
+      if (!user?.nationalId) {
+        return Promise.resolve([])
+      }
+      return teacherSubjectsApi.list({ teacherId: user.nationalId })
+    },
+    enabled: user?.role === 'teacher',
+  })
+
+  const teacherSubjectIds = useMemo(() => {
+    return new Set((teacherAssignments ?? []).map((entry) => entry.subjectId))
+  }, [teacherAssignments])
+
+  const visibleAreas = useMemo(() => {
+    const baseList = user?.role === 'teacher'
+      ? areas.filter((area) =>
+          (area.subjects ?? []).some((subject) => teacherSubjectIds.has(subject.subjectId)),
+        )
+      : areas
     if (!search.trim()) {
-      return areas
+      return baseList
     }
     const needle = search.trim().toLowerCase()
-    return areas.filter((area) =>
+    return baseList.filter((area) =>
       `${area.name} ${area.code ?? ''}`.toLowerCase().includes(needle),
     )
-  }, [areas, search])
+  }, [areas, search, teacherSubjectIds, user?.role])
 
-  const selectedArea = areas.find((area) => area.areaId === selectedAreaId) ?? null
+  const selectedArea = visibleAreas.find((area) => area.areaId === selectedAreaId) ?? null
+
+  useEffect(() => {
+    if (!selectedAreaId && visibleAreas.length > 0) {
+      setSelectedAreaId(visibleAreas[0].areaId)
+      return
+    }
+    if (selectedAreaId && !visibleAreas.some((area) => area.areaId === selectedAreaId)) {
+      setSelectedAreaId(visibleAreas[0]?.areaId ?? null)
+    }
+  }, [selectedAreaId, visibleAreas])
 
   const {
     data: areaTeacherSubjects,
@@ -561,7 +591,7 @@ export const SubjectsPage = () => {
             sx={{ maxWidth: 360 }}
           />
 
-          {filteredAreas.length === 0 ? (
+          {visibleAreas.length === 0 ? (
             <Alert severity="info">No hay áreas registradas.</Alert>
           ) : (
             <Box
@@ -571,7 +601,7 @@ export const SubjectsPage = () => {
                 gap: 2,
               }}
             >
-              {filteredAreas.map((area) => {
+              {visibleAreas.map((area) => {
                 const highlight = area.isSpecialization
                   ? specializationColorMap.get(area.areaId)
                   : undefined
