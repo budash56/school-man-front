@@ -13,7 +13,6 @@ import SchoolYearsStaticPage from './features/schoolYears/SchoolYearsStaticPage'
 import { DisciplinePage } from './features/discipline/DisciplinePage'
 import SubjectsPage from './features/subjects/SubjectsPage'
 import ClassroomsPage from './features/classrooms/ClassroomsPage'
-import TimetableGeneratorPage from './features/timetable/TimetableGeneratorPage'
 import CurriculumPage from './features/curriculum/CurriculumPage'
 import UsersPage from './features/users/UsersPage'
 
@@ -34,7 +33,7 @@ function App() {
           <Route path="discipline" element={<DisciplinePage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="classrooms" element={<ClassroomsPage />} />
-          <Route path="timetable-generator" element={<TimetableGeneratorPage />} />
+          {/* Future version: timetable generator route */}
           <Route path="users" element={<UsersPage />} />
         </Route>
       </Route>

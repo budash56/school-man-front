@@ -77,7 +77,7 @@ export const DashboardLayout = () => {
       { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
       { label: 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
       { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
-      { label: 'Timetable generator', path: '/dashboard/timetable-generator', icon: <ScheduleIcon /> },
+      // Future version: enable timetable generator when ready.
     ]
 
     if (user?.role === 'admin') {
