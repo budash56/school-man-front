@@ -77,6 +77,7 @@ export const UsersPage = () => {
   const [areaError, setAreaError] = useState('')
   const [isAssignOpen, setIsAssignOpen] = useState(false)
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('')
+  const emailIsValid = Boolean(draftUser.email?.trim())
   const tempPassword = useMemo(
     () => buildTempPassword(draftUser.lastName, draftUser.nationalId),
     [draftUser.lastName, draftUser.nationalId],
@@ -301,7 +302,8 @@ export const UsersPage = () => {
       !draftUser.nationalId.trim() ||
       !draftUser.firstName?.trim() ||
       !draftUser.lastName?.trim() ||
-      !tempPassword
+      !tempPassword ||
+      !draftUser.email?.trim()
     ) {
       return
     }
@@ -313,7 +315,7 @@ export const UsersPage = () => {
       username: draftUser.username?.trim() || undefined,
       firstName: draftUser.firstName?.trim() || undefined,
       lastName: draftUser.lastName?.trim() || undefined,
-      email: draftUser.email?.trim() || undefined,
+      email: draftUser.email.trim(),
       phone: draftUser.phone?.trim() || undefined,
     }
 
@@ -693,9 +695,13 @@ export const UsersPage = () => {
             onChange={(event) => setDraftUser((prev) => ({ ...prev, username: event.target.value }))}
           />
           <TextField
-            label="Correo (opcional)"
+            label="Correo"
             value={draftUser.email ?? ''}
             onChange={(event) => setDraftUser((prev) => ({ ...prev, email: event.target.value }))}
+            required
+            type="email"
+            error={!emailIsValid}
+            helperText={!emailIsValid ? 'Obligatorio para pruebas.' : ''}
           />
           <TextField
             label="Teléfono (opcional)"
@@ -780,6 +786,7 @@ export const UsersPage = () => {
               !draftUser.firstName?.trim() ||
               !draftUser.lastName?.trim() ||
               !tempPassword ||
+              !emailIsValid ||
               !areaIsValid ||
               createMutation.isPending
             }
