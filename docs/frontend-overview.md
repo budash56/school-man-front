@@ -5,10 +5,10 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 ## At a Glance
 - **Stack:** [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) powered by [Vite](https://vitejs.dev/), UI built with [MUI 7](https://mui.com/), data fetching via [TanStack Query 5](https://tanstack.com/query/latest) and the native `fetch` API.
 - **Entry point:** `src/main.tsx` wires the React root with routing (`BrowserRouter`), theming (`ColorModeProvider`), authentication context, and TanStack Query’s `QueryClientProvider`.
-- **Routing:** `react-router-dom@6` handles public `/login` and protected `/dashboard/*` routes. `ProtectedRoute` ensures users are authenticated before visiting any dashboard page.
+- **Routing:** `react-router-dom@6` handles public `/login` and protected `/dashboard/*` routes. `ProtectedRoute` ensures users are authenticated before visiting any dashboard page and enforces password rotation when `mustChangePassword` is true.
 - **API Access:** `src/api/apiClient.ts` centralizes fetch logic, attaches JWT tokens, serializes query params, and converts server errors into typed `ApiError`s that UI components can surface.
 - **State & Theming:** Local component state + TanStack Query for server-cache, `ColorModeProvider` wraps MUI’s `ThemeProvider` with a persisted light/dark toggle.
-- **UI Scope:** Coordinator-facing intranet for managing students, enrollments, class groups, discipline, school years, and related dashboards. Recent work added a fully data-driven “School years” explorer and an enrollment wizard.
+- **UI Scope:** Coordinator/admin-facing intranet for managing students, enrollments, class groups, discipline, school years, curriculum, classrooms/buildings, users, and related dashboards. Recent work added a fully data-driven “School years” explorer, a bulk teacher import flow, password-change enforcement, and user profile actions.
 
 ## Repository Layout
 
@@ -17,7 +17,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 | `src/main.tsx` | Bootstraps React root with Router, QueryClientProvider, AuthProvider, and ColorModeProvider. |
 | `src/App.tsx` | Declares all app routes (`/login`, `/dashboard/*`) and guards protected sections. |
 | `src/layouts/DashboardLayout.tsx` | Shell with sidebar navigation, top app bar, role display, color-mode toggle, and logout handling. |
-| `src/features/auth/` | Login page, context (`AuthProvider`), hook (`useAuth`), and `ProtectedRoute`. Handles login, logout, token persistence, and session restore via `/auth/me`. |
+| `src/features/auth/` | Login page, context (`AuthProvider`), hook (`useAuth`), `ProtectedRoute`, and `ChangePasswordPage`. Handles login, logout, token persistence, `/auth/me` restore, and mandatory password change. |
 | `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, etc.). |
 | `src/features/*` | Feature folders (students, enrollments, classGroups, discipline, dashboard, schoolYears). Each folder contains pages, hooks, and components for that domain. |
 | `src/theme/` | `ColorModeProvider` and shared theme configuration (persistent light/dark toggle). |
@@ -28,6 +28,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 ### Application Shell & Navigation
 - **DashboardLayout:** Houses the persistent sidebar and app bar. It lists nav items (“Dashboard”, “Students”, “Enrollments”, “School years”, “Discipline”), highlights the active path, and exposes logout + color-mode controls. The user’s name and role are shown using `useAuth()`.
 - **ProtectedRoute:** Wraps all `/dashboard/*` routes. If `useAuth()` reports no user, it redirects to `/login`, optionally preserving the desired destination.
+- **Password rotation:** When `user.mustChangePassword` is true (non-admin users), the app forces `/change-password` until a new password is set via `/auth/change-password`.
 - **ColorModeProvider:** Keeps a light/dark preference in `localStorage` and feeds MUI’s `ThemeProvider`.
 
 ### Data Access & Caching
@@ -40,6 +41,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 ### Authentication (`/login`)
 - **LoginPage:** Coordinator/teacher login form styled with MUI. Uses `useAuth().login`. Displays server errors via `ApiError.message`.
 - **Session Restore:** On mount, `AuthProvider` checks `localStorage`; if a token exists it calls `/auth/me`. Failures clear storage and return the user to `/login`.
+- **Change Password:** `/change-password` is shown for any non-admin user flagged with `mustChangePassword`. On success, the app refreshes the user and routes to `/dashboard`.
 
 ### Students
 - **`studentsApi`** provides `list`, `getById`, `create`, `update`, and `searchByNationalId` helpers mirroring backend DTOs.
@@ -73,6 +75,12 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 ### Discipline, Dashboards, and Other Routes
 - Placeholder pages exist for “Discipline” and “Dashboard” while backend endpoints are rolled out. They reuse the layout and will be wired next.
 
+### Users Management (/dashboard/users)
+- Admin-facing navigation entry for user management. The page itself supports admin and coordinator roles.
+- **Create user:** Requires email (testing). Shows the generated temporary password (based on last name + last 4 digits).
+- **Bulk import:** CSV/XLSX upload for teachers; shows created credentials + row-level errors.
+- **Profile view:** Displays contact info, teacher subjects, assigned groups, and includes a delete action with confirmation.
+
 ## Data Fetching Helpers
 
 | Hook | Purpose |
@@ -86,7 +94,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled` guards, and explicit error surfaces for the UI.
 
 ## Auth & RBAC in the UI
-- Components rely on `useAuth().user.role` to tailor messaging, but the backend enforces all real RBAC rules. The frontend focuses on surfacing or hiding coordinator-only actions (e.g., enrollment wizard access, edit buttons) while trusting HTTP 403s for final enforcement.
+- Components rely on `useAuth().user.role` to tailor messaging, but the backend enforces all real RBAC rules. The frontend focuses on surfacing or hiding actions for non-admin roles (e.g., read-only views for teachers/registrar in classrooms, subjects/areas, school years, curriculum, enrollments, and users) while trusting HTTP 403s for final enforcement.
 
 ## Error & Loading Patterns
 - Every major section (lists, tables, cards) shows:
@@ -104,7 +112,7 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 > **Proxy note:** `vite.config.ts` proxies `/api/*` to `VITE_DEV_API_PROXY_TARGET` (defaults to `http://localhost:3000`) so local dev hits the NestJS backend without CORS issues.
 
 ## Timetable Generator
-- **Route:** `/dashboard/timetable-generator` (new sidebar entry inside `DashboardLayout`).
+- **Route:** `/dashboard/timetable-generator` (currently hidden in navigation and routes; reserved for a future version).
 - **Existing timetable mode:** When `/timetable-assignments` already contains entries for the selected school year + division, the page shows two side‑by‑side panes:
   - **Profesores:** Search field + list of teachers. Clicking a button loads their schedule via `/timetable-assignments?teacherId=...` and renders it in a small table (handled by `TimetableResultsTable`).
   - **Grupos:** Mirrors the teacher pane but filters class groups (queried through `useClassGroupsQuery` scoped to the division). Buttons fetch `/timetable-assignments?classGroupId=...`.
@@ -122,14 +130,16 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 ## Recent Enhancements
 - **Data-driven School Years page:** Replaced static grade/group placeholders with live `/school-years` + `/class-groups` data, including student rosters retrieved via real enrollments.
 - **Enrollment Wizard:** Streamlined entry point, added last enrollment context, edit-in-place for existing students, and ensured all selectors are populated from the backend.
-- **Students Page:** Added filters for keyword/year, MUI search field, and error handling; rows now navigate to the detail view.
-- **Student Detail View:** Completely wired to per-student hooks, showing profile, enrollments, and discipline records with loading/error states.
+- **Users module:** Added bulk teacher import, required email on create (testing), and delete actions in the profile view.
+- **Password change enforcement:** Non-admin users flagged `mustChangePassword` are forced to `/change-password`.
+- **Timetable generator hidden:** Route and nav entry are disabled until the feature is ready.
 
 ## Future Work
 - Flesh out the dashboard widgets once the backend dashboards endpoints are exposed to the frontend.
 - Wire “Discipline” page and additional settings pages using the existing API layer structure.
 - Add optimistic updates or inline editing patterns for frequently edited entities (students, enrollments) using TanStack Query mutations.
 - Improve bundle size with dynamic imports for less-used sections (Vite currently warns about >500 kB bundles).
+- Surface coordinator/admin dashboards once backend analytics are finalized.
 
 ---
 This document should be updated whenever major frontend architecture or feature changes are introduced (new routes, global providers, data-fetching patterns, etc.).
