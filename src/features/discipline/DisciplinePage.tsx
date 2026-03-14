@@ -79,23 +79,15 @@ export const DisciplinePage = () => {
     error: classGroupError,
   } = useClassGroupsQuery(classGroupQueryParams)
 
-  const teacherNumericId = useMemo(() => {
-    if (user?.role !== 'teacher') {
-      return null
-    }
-    const value = Number(user.nationalId)
-    return Number.isFinite(value) ? value : null
-  }, [user])
-
   const { data: teacherCourses } = useQuery({
     queryKey: ['teacher-courses', user?.nationalId, schoolYearId],
     queryFn: () => {
-      if (!teacherNumericId || !schoolYearId) {
+      if (user?.role !== 'teacher' || !user.nationalId || !schoolYearId) {
         return Promise.resolve([])
       }
-      return coursesApi.list({ teacherId: teacherNumericId, schoolYearId })
+      return coursesApi.list({ teacherId: user.nationalId, schoolYearId })
     },
-    enabled: user?.role === 'teacher' && Boolean(teacherNumericId) && Boolean(schoolYearId),
+    enabled: user?.role === 'teacher' && Boolean(user?.nationalId) && Boolean(schoolYearId),
   })
 
   const allowedClassGroupIds = useMemo(() => {

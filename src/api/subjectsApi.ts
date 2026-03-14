@@ -23,9 +23,15 @@ export type CreateSubjectPayload = {
   description?: string
 }
 
+const normalizeSubject = (subject: Subject): Subject => ({
+  ...subject,
+  subjectId: Number(subject.subjectId),
+  areaId: subject.areaId === undefined ? undefined : Number(subject.areaId),
+})
+
 export const subjectsApi = {
-  list(params: SubjectsQuery = {}) {
-    return apiClient.get<PaginatedResult<Subject>>('/subjects', {
+  async list(params: SubjectsQuery = {}) {
+    const response = await apiClient.get<PaginatedResult<Subject>>('/subjects', {
       query: {
         q: params.q,
         areaId: params.areaId,
@@ -33,9 +39,14 @@ export const subjectsApi = {
         pageSize: params.pageSize,
       },
     })
+    return {
+      ...response,
+      data: response.data.map(normalizeSubject),
+    }
   },
-  create(payload: CreateSubjectPayload) {
-    return apiClient.post<Subject>('/subjects', payload)
+  async create(payload: CreateSubjectPayload) {
+    const response = await apiClient.post<Subject>('/subjects', payload)
+    return normalizeSubject(response)
   },
   remove(subjectId: number) {
     return apiClient.del<{ deleted: true }>(`/subjects/${subjectId}`)

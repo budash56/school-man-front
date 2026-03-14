@@ -330,11 +330,7 @@ export const SubjectsPage = () => {
   const selectedArea = visibleAreas.find((area) => area.areaId === selectedAreaId) ?? null
 
   useEffect(() => {
-    if (!selectedAreaId && visibleAreas.length > 0) {
-      setSelectedAreaId(visibleAreas[0].areaId)
-      return
-    }
-    if (selectedAreaId && !visibleAreas.some((area) => area.areaId === selectedAreaId)) {
+    if (selectedAreaId !== null && !visibleAreas.some((area) => area.areaId === selectedAreaId)) {
       setSelectedAreaId(visibleAreas[0]?.areaId ?? null)
     }
   }, [selectedAreaId, visibleAreas])
@@ -476,11 +472,7 @@ export const SubjectsPage = () => {
       if (!selectedTeacher) {
         return Promise.resolve([])
       }
-      const numericId = Number(selectedTeacher.nationalId)
-      if (!Number.isFinite(numericId)) {
-        return Promise.resolve([])
-      }
-      return coursesApi.list({ teacherId: numericId })
+      return coursesApi.list({ teacherId: selectedTeacher.nationalId })
     },
     enabled: Boolean(selectedTeacher),
   })
@@ -683,7 +675,7 @@ export const SubjectsPage = () => {
               display: 'grid',
               gridTemplateColumns: { xs: '1fr', md: '1.3fr 1fr' },
               gap: 3,
-              alignItems: 'start',
+              alignItems: 'flex-start',
             }}
           >
             <Paper sx={{ p: 2 }}>

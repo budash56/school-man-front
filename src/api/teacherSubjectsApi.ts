@@ -19,17 +19,25 @@ export type CreateTeacherSubjectPayload = {
   subjectId: number
 }
 
+const normalizeTeacherSubject = (item: TeacherSubject): TeacherSubject => ({
+  ...item,
+  teacherSubjectId: Number(item.teacherSubjectId),
+  subjectId: Number(item.subjectId),
+})
+
 export const teacherSubjectsApi = {
-  list(params: TeacherSubjectsQuery = {}) {
-    return apiClient.get<TeacherSubject[]>('/teacher-subjects', {
+  async list(params: TeacherSubjectsQuery = {}) {
+    const response = await apiClient.get<TeacherSubject[]>('/teacher-subjects', {
       query: {
         teacherId: params.teacherId,
         subjectId: params.subjectId,
       },
     })
+    return response.map(normalizeTeacherSubject)
   },
-  create(payload: CreateTeacherSubjectPayload) {
-    return apiClient.post<TeacherSubject>('/teacher-subjects', payload)
+  async create(payload: CreateTeacherSubjectPayload) {
+    const response = await apiClient.post<TeacherSubject>('/teacher-subjects', payload)
+    return normalizeTeacherSubject(response)
   },
   remove(teacherSubjectId: number) {
     return apiClient.del(`/teacher-subjects/${teacherSubjectId}`)

@@ -4,7 +4,7 @@ export type CourseSummary = {
   courseId: number
   courseInstanceId: number
   classGroupId: number
-  teacherId: number
+  teacherId: string
   schoolYearId: number
   gradeLevel: number
   section: string
@@ -19,13 +19,13 @@ export type CoursesQuery = {
   schoolYearId?: number
   gradeLevel?: number
   section?: string
-  teacherId?: number
+  teacherId?: string
 }
 
 export type CreateCoursePayload = {
   courseInstanceId: number
   classGroupId: number
-  teacherId: number
+  teacherId: string
 }
 
 export type UpdateCoursePayload = Partial<CreateCoursePayload>

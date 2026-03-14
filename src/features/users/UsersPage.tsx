@@ -29,7 +29,7 @@ import { usersApi, type BulkImportUsersResult, type CreateUserPayload, type User
 import { useAuth } from '../auth/AuthContext'
 import { useLocation } from 'react-router-dom'
 import { subjectsApi } from '../../api/subjectsApi'
-import { coursesApi, type CourseSummary } from '../../api/coursesApi'
+import { coursesApi } from '../../api/coursesApi'
 
 const roles = [
   { value: 'teacher', label: 'Profesor' },
@@ -141,11 +141,7 @@ export const UsersPage = () => {
       if (!selectedUserId) {
         throw new Error('teacherId required')
       }
-      const numericId = Number(selectedUserId)
-      if (!Number.isFinite(numericId)) {
-        return Promise.resolve([] as CourseSummary[])
-      }
-      return coursesApi.list({ teacherId: numericId })
+      return coursesApi.list({ teacherId: selectedUserId })
     },
     enabled: Boolean(selectedUserId) && selectedUser?.role === 'teacher',
   })
@@ -238,21 +234,33 @@ export const UsersPage = () => {
         ),
       )
     },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-subjects'] }),
+        queryClient.invalidateQueries({ queryKey: ['area-teacher-subjects'] }),
+      ])
+    },
   })
 
   const assignSubjectMutation = useMutation({
     mutationFn: teacherSubjectsApi.create,
-    onSuccess: () => {
+    onSuccess: async () => {
       setIsAssignOpen(false)
       setSelectedSubjectId('')
-      queryClient.invalidateQueries({ queryKey: ['teacher-subjects', selectedUserId] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-subjects'] }),
+        queryClient.invalidateQueries({ queryKey: ['area-teacher-subjects'] }),
+      ])
     },
   })
 
   const removeSubjectMutation = useMutation({
     mutationFn: teacherSubjectsApi.remove,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['teacher-subjects', selectedUserId] })
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['teacher-subjects'] }),
+        queryClient.invalidateQueries({ queryKey: ['area-teacher-subjects'] }),
+      ])
     },
   })
 

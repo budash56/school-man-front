@@ -414,8 +414,8 @@ export const WorkLoadPage = () => {
           continue
         }
 
-        const teacherId = Number(teacherIdValue)
-        if (!Number.isFinite(teacherId)) {
+        const teacherId = teacherIdValue.trim()
+        if (!teacherId) {
           throw new Error('El profesor seleccionado no tiene un identificador válido.')
         }
 

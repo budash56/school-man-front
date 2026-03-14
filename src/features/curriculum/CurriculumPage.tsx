@@ -658,7 +658,7 @@ export const CurriculumPage = () => {
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: '260px 1fr' },
           gap: 3,
-          alignItems: 'start',
+          alignItems: 'flex-start',
         }}
       >
         <Paper sx={{ p: 2 }}>

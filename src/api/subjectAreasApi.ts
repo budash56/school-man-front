@@ -25,9 +25,22 @@ export type CreateSubjectAreaPayload = {
 
 export type UpdateSubjectAreaPayload = Partial<CreateSubjectAreaPayload>
 
+const normalizeSubjectArea = (area: SubjectArea): SubjectArea => ({
+  ...area,
+  areaId: Number(area.areaId),
+  subjects: area.subjects?.map((subject) => ({
+    ...subject,
+    subjectId: Number(subject.subjectId),
+    areaId:
+      subject.areaId === undefined
+        ? Number(area.areaId)
+        : Number(subject.areaId),
+  })),
+})
+
 export const subjectAreasApi = {
-  list(params: SubjectAreasQuery = {}) {
-    return apiClient.get<PaginatedResult<SubjectArea>>('/subject-areas', {
+  async list(params: SubjectAreasQuery = {}) {
+    const response = await apiClient.get<PaginatedResult<SubjectArea>>('/subject-areas', {
       query: {
         q: params.q,
         page: params.page,
@@ -35,14 +48,21 @@ export const subjectAreasApi = {
         includeSubjects: params.includeSubjects,
       },
     })
+    return {
+      ...response,
+      data: response.data.map(normalizeSubjectArea),
+    }
   },
-  getById(areaId: number) {
-    return apiClient.get<SubjectArea>(`/subject-areas/${areaId}`)
+  async getById(areaId: number) {
+    const response = await apiClient.get<SubjectArea>(`/subject-areas/${areaId}`)
+    return normalizeSubjectArea(response)
   },
-  create(payload: CreateSubjectAreaPayload) {
-    return apiClient.post<SubjectArea>('/subject-areas', payload)
+  async create(payload: CreateSubjectAreaPayload) {
+    const response = await apiClient.post<SubjectArea>('/subject-areas', payload)
+    return normalizeSubjectArea(response)
   },
-  update(areaId: number, payload: UpdateSubjectAreaPayload) {
-    return apiClient.patch<SubjectArea>(`/subject-areas/${areaId}`, payload)
+  async update(areaId: number, payload: UpdateSubjectAreaPayload) {
+    const response = await apiClient.patch<SubjectArea>(`/subject-areas/${areaId}`, payload)
+    return normalizeSubjectArea(response)
   },
 }
