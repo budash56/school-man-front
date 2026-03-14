@@ -15,6 +15,7 @@ import SubjectsPage from './features/subjects/SubjectsPage'
 import ClassroomsPage from './features/classrooms/ClassroomsPage'
 import CurriculumPage from './features/curriculum/CurriculumPage'
 import UsersPage from './features/users/UsersPage'
+import WorkLoadPage from './features/workload/WorkLoadPage'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
           <Route path="discipline" element={<DisciplinePage />} />
           <Route path="subjects" element={<SubjectsPage />} />
           <Route path="classrooms" element={<ClassroomsPage />} />
+          <Route path="workload" element={<WorkLoadPage />} />
           {/* Future version: timetable generator route */}
           <Route path="users" element={<UsersPage />} />
         </Route>

@@ -40,7 +40,7 @@ import {
   type CreateClassroomPayload,
 } from '../../api/classroomsApi'
 import { classGroupsApi, type ManualAssignClassGroupResult } from '../../api/classGroupsApi'
-import { enrollmentsApi, type Enrollment } from '../../api/enrollmentsApi'
+import { enrollmentsApi } from '../../api/enrollmentsApi'
 import { schoolYearsApi } from '../../api/schoolYearsApi'
 import { canAssignClassroom, getCapacityStatus, getClassroomsQuery } from './assignmentValidation'
 import { useAuth } from '../auth/AuthContext'

@@ -25,9 +25,9 @@ import {
   School as SchoolIcon,
   MenuBook as MenuBookIcon,
   MeetingRoom as MeetingRoomIcon,
-  Schedule as ScheduleIcon,
   AutoStories as AutoStoriesIcon,
   ManageAccounts as ManageAccountsIcon,
+  Work as WorkIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -88,8 +88,13 @@ export const DashboardLayout = () => {
             '/dashboard/curriculum',
             '/dashboard/class-groups',
             '/dashboard/classrooms',
+            '/dashboard/workload',
           ].includes(item.path),
       )
+    }
+
+    if (user?.role === 'admin' || user?.role === 'coordinator') {
+      items.push({ label: 'WorkLoad', path: '/dashboard/workload', icon: <WorkIcon /> })
     }
 
     if (user?.role === 'admin') {

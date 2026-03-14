@@ -22,6 +22,14 @@ export type CoursesQuery = {
   teacherId?: number
 }
 
+export type CreateCoursePayload = {
+  courseInstanceId: number
+  classGroupId: number
+  teacherId: number
+}
+
+export type UpdateCoursePayload = Partial<CreateCoursePayload>
+
 export const coursesApi = {
   list(params: CoursesQuery = {}) {
     return apiClient.get<CourseSummary[]>('/courses', {
@@ -32,5 +40,14 @@ export const coursesApi = {
         teacherId: params.teacherId,
       },
     })
+  },
+  create(payload: CreateCoursePayload) {
+    return apiClient.post<CourseSummary>('/courses', payload)
+  },
+  update(courseId: number, payload: UpdateCoursePayload) {
+    return apiClient.patch<CourseSummary>(`/courses/${courseId}`, payload)
+  },
+  remove(courseId: number) {
+    return apiClient.del<{ deleted: true }>(`/courses/${courseId}`)
   },
 }

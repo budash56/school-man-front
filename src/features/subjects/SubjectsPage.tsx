@@ -1001,7 +1001,13 @@ export const SubjectsPage = () => {
             SelectProps={{ multiple: true }}
             label="Asignaturas del área"
             value={assignSubjectIds}
-            onChange={(event) => setAssignSubjectIds(event.target.value as number[])}
+            onChange={(event) =>
+              setAssignSubjectIds(
+                (Array.isArray(event.target.value) ? event.target.value : [event.target.value]).map((value) =>
+                  Number(value),
+                ),
+              )
+            }
             disabled={!selectedArea?.subjects?.length}
           >
             {(selectedArea?.subjects ?? []).map((subject) => (
