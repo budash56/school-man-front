@@ -62,6 +62,14 @@ const teacherLabel = (teacher: User) => {
   return fullName || teacher.nationalId
 }
 
+const pickRandomItem = <T,>(items: T[]) => {
+  if (items.length === 0) {
+    return null
+  }
+  const index = Math.floor(Math.random() * items.length)
+  return items[index] ?? null
+}
+
 const resolveGradeCurriculum = (curricula: Curriculum[], gradeLevel: number) => {
   const gradeCurricula = curricula.filter((curriculum) => curriculum.gradeLevel === gradeLevel)
   const baseCurriculum = gradeCurricula.find((curriculum) => !curriculum.trackName)
@@ -221,12 +229,13 @@ export const WorkLoadPage = () => {
     const items = selectedConfiguration?.items ?? []
     return items
       .map((item) => ({
-        subjectId: item.subjectId,
+        subjectId: Number(item.subjectId),
         subjectName: item.subject?.name ?? `Asignatura ${item.subjectId}`,
         subjectCode: item.subject?.subjectCode ?? '',
         weeklyHours: item.weeklyHours,
         doubleSessionRequired: item.doubleSessionRequired,
       }))
+      .filter((row) => Number.isFinite(row.subjectId) && row.subjectId > 0)
       .sort((left, right) => {
         const codeCompare = left.subjectCode.localeCompare(right.subjectCode, 'es')
         if (codeCompare !== 0) {
@@ -299,13 +308,23 @@ export const WorkLoadPage = () => {
     return map
   }, [allTeacherSubjects])
 
+  const teacherById = useMemo(() => {
+    return new Map(teachers.map((teacher) => [teacher.nationalId, teacher]))
+  }, [teachers])
+
   const teachersForSubject = (subjectId: number) => {
     const allowed = teacherIdsBySubject.get(subjectId)
     if (!allowed || allowed.size === 0) {
-      return teachers
+      return []
     }
     return teachers.filter((teacher) => allowed.has(teacher.nationalId))
   }
+
+  const subjectsWithoutEligibleTeachers = useMemo(() => {
+    return subjectRows
+      .filter((row) => teachersForSubject(row.subjectId).length === 0)
+      .map((row) => row.subjectName)
+  }, [subjectRows, teacherIdsBySubject, teachers])
 
   const getAssignedTeacherId = (subjectId: number, classGroupId: number) => {
     const key = cellKey(subjectId, classGroupId)
@@ -313,6 +332,44 @@ export const WorkLoadPage = () => {
   }
 
   const pendingChanges = Object.keys(draftAssignments).length
+
+  const handleRandomTestingSelection = () => {
+    if (teachers.length === 0) {
+      setSaveError('No hay profesores disponibles para la selección aleatoria de prueba.')
+      setSaveSuccess(null)
+      return
+    }
+
+    const nextAssignments: Record<string, string> = {}
+    const skippedSubjects = new Set<string>()
+
+    subjectRows.forEach((row) => {
+      const availableTeachers = teachersForSubject(row.subjectId)
+      if (availableTeachers.length === 0) {
+        skippedSubjects.add(row.subjectName)
+        return
+      }
+
+      selectedGroups.forEach((group) => {
+        const key = cellKey(row.subjectId, group.classGroupId)
+        const randomTeacher = pickRandomItem(availableTeachers)
+        const randomTeacherId = randomTeacher?.nationalId ?? ''
+        const originalValue = assignmentState.assignments.get(key)?.teacherId ?? ''
+
+        if (randomTeacherId && randomTeacherId !== originalValue) {
+          nextAssignments[key] = randomTeacherId
+        }
+      })
+    })
+
+    setDraftAssignments(nextAssignments)
+    setSaveError(
+      skippedSubjects.size > 0
+        ? `Testing only: no hay profesores elegibles para ${Array.from(skippedSubjects).join(', ')}.`
+        : null,
+    )
+    setSaveSuccess(null)
+  }
 
   const saveMutation = useMutation({
     mutationFn: async (payload: Record<string, string>) => {
@@ -360,6 +417,18 @@ export const WorkLoadPage = () => {
         const teacherId = Number(teacherIdValue)
         if (!Number.isFinite(teacherId)) {
           throw new Error('El profesor seleccionado no tiene un identificador válido.')
+        }
+
+        const eligibleTeachers = teachersForSubject(subjectId)
+        if (eligibleTeachers.length === 0) {
+          throw new Error(`No hay profesores elegibles para la asignatura ${subjectRowById.get(subjectId)?.subjectName ?? subjectId}.`)
+        }
+
+        const isEligible = eligibleTeachers.some(
+          (eligibleTeacher) => eligibleTeacher.nationalId === teacherIdValue,
+        )
+        if (!isEligible) {
+          throw new Error(`El profesor seleccionado no está habilitado para la asignatura ${subjectRowById.get(subjectId)?.subjectName ?? subjectId}.`)
         }
 
         if (existing) {
@@ -474,6 +543,11 @@ export const WorkLoadPage = () => {
               Hay asignaciones duplicadas para: {duplicateLabels.join(', ')}. Corrige esos cursos antes de editar esta vista.
             </Alert>
           ) : null}
+          {subjectsWithoutEligibleTeachers.length > 0 ? (
+            <Alert severity="warning">
+              No hay profesores habilitados para: {subjectsWithoutEligibleTeachers.join(', ')}.
+            </Alert>
+          ) : null}
           {saveError ? <Alert severity="error">{saveError}</Alert> : null}
           {saveSuccess ? <Alert severity="success">{saveSuccess}</Alert> : null}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -483,6 +557,14 @@ export const WorkLoadPage = () => {
               disabled={pendingChanges === 0 || saveMutation.isPending || duplicateLabels.length > 0}
             >
               {saveMutation.isPending ? 'Guardando...' : 'Guardar WorkLoad'}
+            </Button>
+            <Button
+              variant="outlined"
+              color="warning"
+              onClick={handleRandomTestingSelection}
+              disabled={teachers.length === 0 || saveMutation.isPending || duplicateLabels.length > 0}
+            >
+              Selección aleatoria
             </Button>
             <Button
               variant="outlined"
@@ -496,6 +578,9 @@ export const WorkLoadPage = () => {
               Limpiar cambios
             </Button>
           </Stack>
+          <Typography variant="caption" color="text.secondary">
+            Testing only: la selección aleatoria asigna profesores visibles sin validar balance o repetición.
+          </Typography>
         </Stack>
       </Paper>
 
@@ -504,7 +589,18 @@ export const WorkLoadPage = () => {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ minWidth: 240 }}>Asignatura</TableCell>
+                <TableCell
+                  sx={{
+                    minWidth: 240,
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 3,
+                    backgroundColor: 'background.paper',
+                    boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
+                  }}
+                >
+                  Asignatura
+                </TableCell>
                 <TableCell sx={{ minWidth: 110 }}>Horas</TableCell>
                 {selectedGroups.map((group) => (
                   <TableCell key={group.classGroupId} sx={{ minWidth: 220 }}>
@@ -517,10 +613,17 @@ export const WorkLoadPage = () => {
             <TableBody>
               {subjectRows.map((row) => (
                 <TableRow key={row.subjectId} hover>
-                  <TableCell>
+                  <TableCell
+                    sx={{
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 2,
+                      backgroundColor: 'background.paper',
+                      boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
+                    }}
+                  >
                     <Stack spacing={0.5}>
                       <Typography fontWeight={600}>
-                        {row.subjectCode ? `${row.subjectCode} · ` : ''}
                         {row.subjectName}
                       </Typography>
                       {row.doubleSessionRequired ? (
@@ -536,6 +639,10 @@ export const WorkLoadPage = () => {
                     const availableTeachers = teachersForSubject(row.subjectId)
                     const currentValue = getAssignedTeacherId(row.subjectId, group.classGroupId)
                     const hasChanged = key in draftAssignments
+                    const currentTeacher = currentValue ? teacherById.get(currentValue) ?? null : null
+                    const shouldShowCurrentTeacher =
+                      Boolean(currentTeacher) &&
+                      !availableTeachers.some((teacher) => teacher.nationalId === currentValue)
                     return (
                       <TableCell
                         key={key}
@@ -565,6 +672,11 @@ export const WorkLoadPage = () => {
                             disabled={duplicateLabels.length > 0}
                           >
                             <MenuItem value="">Sin asignar</MenuItem>
+                            {shouldShowCurrentTeacher ? (
+                              <MenuItem value={currentValue}>
+                                {teacherLabel(currentTeacher as User)} (actual)
+                              </MenuItem>
+                            ) : null}
                             {availableTeachers.map((teacher) => (
                               <MenuItem key={teacher.nationalId} value={teacher.nationalId}>
                                 {teacherLabel(teacher)}

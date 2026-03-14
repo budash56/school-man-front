@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   CircularProgress,
   Divider,
@@ -74,9 +75,11 @@ export const UsersPage = () => {
   const [bulkError, setBulkError] = useState('')
   const [draftUser, setDraftUser] = useState<CreateUserPayload>(emptyUser)
   const [selectedAreas, setSelectedAreas] = useState<number[]>([])
+  const [selectedCreateSubjectIds, setSelectedCreateSubjectIds] = useState<number[]>([])
   const [areaError, setAreaError] = useState('')
   const [isAssignOpen, setIsAssignOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [selectedAssignAreaId, setSelectedAssignAreaId] = useState<number | ''>('')
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('')
   const emailIsValid = Boolean(draftUser.email?.trim())
   const tempPassword = useMemo(
@@ -177,6 +180,7 @@ export const UsersPage = () => {
   })
 
   const areas = areasResult?.data ?? []
+  const areasById = useMemo(() => new Map(areas.map((area) => [area.areaId, area])), [areas])
 
   const filteredUsers = useMemo(() => {
     const list = data?.data ?? []
@@ -270,6 +274,7 @@ export const UsersPage = () => {
   const handleOpenCreate = () => {
     setDraftUser({ ...emptyUser, role: selectedRole, password: '' })
     setSelectedAreas([])
+    setSelectedCreateSubjectIds([])
     setAreaError('')
     setIsCreateOpen(true)
   }
@@ -307,6 +312,21 @@ export const UsersPage = () => {
     }
     setAreaError('')
     setSelectedAreas(value)
+    setSelectedCreateSubjectIds((previous) =>
+      previous.filter((subjectId) =>
+        value.some((areaId) =>
+          (areasById.get(areaId)?.subjects ?? []).some((subject) => subject.subjectId === subjectId),
+        ),
+      ),
+    )
+  }
+
+  const toggleCreateSubject = (subjectId: number) => {
+    setSelectedCreateSubjectIds((previous) =>
+      previous.includes(subjectId)
+        ? previous.filter((item) => item !== subjectId)
+        : [...previous, subjectId],
+    )
   }
 
   const handleCreateUser = async () => {
@@ -334,15 +354,10 @@ export const UsersPage = () => {
     await createMutation.mutateAsync(payload)
 
     if (payload.role === 'teacher') {
-      const selectedAreaObjects = areas.filter((area) => selectedAreas.includes(area.areaId))
-      const subjectIds = selectedAreaObjects.flatMap((area) =>
-        (area.subjects ?? []).map((subject) => subject.subjectId),
-      )
-
-      if (subjectIds.length > 0) {
+      if (selectedCreateSubjectIds.length > 0) {
         await assignSubjectsMutation.mutateAsync({
           teacherId: payload.nationalId,
-          subjectIds,
+          subjectIds: selectedCreateSubjectIds,
         })
       }
     }
@@ -350,6 +365,28 @@ export const UsersPage = () => {
 
   const areaSelectionRequired = draftUser.role === 'teacher'
   const areaIsValid = !areaSelectionRequired || selectedAreas.length > 0
+  const subjectSelectionRequired = draftUser.role === 'teacher'
+  const subjectsAreValid = !subjectSelectionRequired || selectedCreateSubjectIds.length > 0
+  const selectedCreateAreaObjects = useMemo(
+    () => areas.filter((area) => selectedAreas.includes(area.areaId)),
+    [areas, selectedAreas],
+  )
+  const assignAreaOptions = useMemo(() => {
+    const areaIds = new Set(
+      availableSubjects
+        .map((subject) => subject.areaId)
+        .filter((areaId): areaId is number => typeof areaId === 'number'),
+    )
+    return areas
+      .filter((area) => areaIds.has(area.areaId))
+      .sort((left, right) => left.name.localeCompare(right.name, 'es'))
+  }, [areas, availableSubjects])
+  const assignableSubjects = useMemo(() => {
+    if (selectedAssignAreaId === '') {
+      return availableSubjects
+    }
+    return availableSubjects.filter((subject) => subject.areaId === selectedAssignAreaId)
+  }, [availableSubjects, selectedAssignAreaId])
 
   if (selectedUserId) {
     return (
@@ -402,7 +439,11 @@ export const UsersPage = () => {
                       <Button
                         size="small"
                         variant="outlined"
-                        onClick={() => setIsAssignOpen(true)}
+                        onClick={() => {
+                          setSelectedAssignAreaId('')
+                          setSelectedSubjectId('')
+                          setIsAssignOpen(true)
+                        }}
                         disabled={availableSubjects.length === 0}
                       >
                         Agregar asignatura
@@ -462,6 +503,27 @@ export const UsersPage = () => {
           <DialogTitle>Asignar asignatura</DialogTitle>
           <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
             <FormControl fullWidth>
+              <InputLabel id="assign-area-select-label">Área</InputLabel>
+                <Select
+                  labelId="assign-area-select-label"
+                  label="Área"
+                  value={selectedAssignAreaId}
+                  onChange={(event) => {
+                    const value = event.target.value as string | number
+                    const nextAreaId = value === '' ? '' : Number(value)
+                    setSelectedAssignAreaId(nextAreaId)
+                    setSelectedSubjectId('')
+                  }}
+                >
+                <MenuItem value="">Todas las áreas</MenuItem>
+                {assignAreaOptions.map((area) => (
+                  <MenuItem key={area.areaId} value={area.areaId}>
+                    {area.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
               <InputLabel id="subject-select-label">Asignatura</InputLabel>
               <Select
                 labelId="subject-select-label"
@@ -469,7 +531,7 @@ export const UsersPage = () => {
                 value={selectedSubjectId}
                 onChange={(event) => setSelectedSubjectId(Number(event.target.value))}
               >
-                {availableSubjects.map((subject) => (
+                {assignableSubjects.map((subject) => (
                   <MenuItem key={subject.subjectId} value={subject.subjectId}>
                     {subject.name}
                   </MenuItem>
@@ -808,6 +870,48 @@ export const UsersPage = () => {
                   </Typography>
                 ) : null}
               </FormControl>
+              {selectedCreateAreaObjects.length > 0 ? (
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">Asignaturas habilitadas</Typography>
+                  {selectedCreateAreaObjects.map((area) => (
+                    <Paper key={area.areaId} variant="outlined" sx={{ p: 2 }}>
+                      <Stack spacing={1}>
+                        <Typography variant="body2" fontWeight={600}>
+                          {area.name}
+                        </Typography>
+                        {(area.subjects ?? []).length > 0 ? (
+                          <Stack spacing={0.5}>
+                            {(area.subjects ?? []).map((subject) => (
+                              <ListItemButton
+                                key={subject.subjectId}
+                                onClick={() => toggleCreateSubject(subject.subjectId)}
+                                sx={{ borderRadius: 1, px: 1 }}
+                              >
+                                <Checkbox
+                                  edge="start"
+                                  checked={selectedCreateSubjectIds.includes(subject.subjectId)}
+                                  tabIndex={-1}
+                                  disableRipple
+                                />
+                                <Typography variant="body2">{subject.name}</Typography>
+                              </ListItemButton>
+                            ))}
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Esta área no tiene asignaturas registradas.
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Paper>
+                  ))}
+                  {!subjectsAreValid ? (
+                    <Typography color="error" variant="caption">
+                      Selecciona al menos una asignatura para el profesor.
+                    </Typography>
+                  ) : null}
+                </Stack>
+              ) : null}
             </Stack>
           ) : null}
 
@@ -838,6 +942,7 @@ export const UsersPage = () => {
               !tempPassword ||
               !emailIsValid ||
               !areaIsValid ||
+              !subjectsAreValid ||
               createMutation.isPending
             }
           >
