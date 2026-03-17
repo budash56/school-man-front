@@ -16,6 +16,7 @@ import ClassroomsPage from './features/classrooms/ClassroomsPage'
 import CurriculumPage from './features/curriculum/CurriculumPage'
 import UsersPage from './features/users/UsersPage'
 import WorkLoadPage from './features/workload/WorkLoadPage'
+import AttendancePage from './features/attendance/AttendancePage'
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route index element={<DashboardHomePage />} />
           <Route path="students" element={<StudentsPage />} />
           <Route path="students/:studentId" element={<StudentDetailPage />} />
+          <Route path="attendance" element={<AttendancePage />} />
           <Route path="enrollments" element={<EnrollmentsPage />} />
           <Route path="enrollments/new" element={<EnrollmentWizardPage />} />
           <Route path="curriculum" element={<CurriculumPage />} />
