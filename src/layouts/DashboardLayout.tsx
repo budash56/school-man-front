@@ -35,7 +35,7 @@ import { useTheme } from '@mui/material/styles'
 import { useAuth } from '../features/auth/AuthContext'
 import { useColorMode } from '../theme/ColorModeProvider'
 
-const drawerWidth = 240
+const desktopDrawerWidth = 240
 
 type NavItem = {
   label: string
@@ -51,6 +51,7 @@ export const DashboardLayout = () => {
   const { mode, toggleColorMode } = useColorMode()
   const [mobileOpen, setMobileOpen] = useState(false)
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
+  const isMobile = !isDesktop
 
   const handleDrawerToggle = () => {
     setMobileOpen((prev) => !prev)
@@ -139,37 +140,59 @@ export const DashboardLayout = () => {
       <AppBar
         position="fixed"
         sx={{
-          width: { md: `calc(100% - ${drawerWidth}px)` },
-          ml: { md: `${drawerWidth}px` },
+          width: { md: `calc(100% - ${desktopDrawerWidth}px)` },
+          ml: { md: `${desktopDrawerWidth}px` },
         }}
       >
-        <Toolbar>
+        <Toolbar
+          sx={{
+            minHeight: { xs: 64, sm: 72 },
+            px: { xs: 1.5, sm: 2 },
+            gap: 1,
+            alignItems: 'center',
+          }}
+        >
           {!isDesktop && (
             <IconButton
               color="inherit"
               edge="start"
               onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
+              sx={{ mr: 0.5 }}
             >
               <MenuIcon />
             </IconButton>
           )}
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="div">
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Typography
+              variant={isMobile ? 'subtitle1' : 'h6'}
+              component="div"
+              noWrap
+            >
               SchoolMan {user?.role ? `· ${user.role}` : ''}
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.8 }}>
+            <Typography
+              variant="body2"
+              sx={{ opacity: 0.8, display: { xs: 'none', sm: 'block' } }}
+              noWrap
+            >
               Coordinator dashboard shell
             </Typography>
           </Box>
-          <IconButton color="inherit" onClick={toggleColorMode} sx={{ mr: 1 }}>
+          <IconButton color="inherit" onClick={toggleColorMode} sx={{ mr: { xs: 0, sm: 1 } }}>
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
           </IconButton>
-          <Box sx={{ textAlign: 'right', mr: 2 }}>
-            <Typography variant="subtitle2">
+          <Box
+            sx={{
+              textAlign: 'right',
+              mr: { xs: 0.5, sm: 2 },
+              minWidth: 0,
+              display: { xs: 'none', sm: 'block' },
+            }}
+          >
+            <Typography variant="subtitle2" noWrap>
               {user?.firstName || user?.username || 'User'}
             </Typography>
-            <Typography variant="caption">
+            <Typography variant="caption" noWrap>
               {user?.role ?? 'role'}
             </Typography>
           </Box>
@@ -180,7 +203,7 @@ export const DashboardLayout = () => {
       </AppBar>
       <Box
         component="nav"
-        sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}
+        sx={{ width: { md: desktopDrawerWidth }, flexShrink: { md: 0 } }}
         aria-label="navigation links"
       >
         <Drawer
@@ -193,7 +216,7 @@ export const DashboardLayout = () => {
           sx={{
             display: { xs: 'block', md: 'block' },
             '& .MuiDrawer-paper': {
-              width: drawerWidth,
+              width: { xs: 'min(88vw, 320px)', md: desktopDrawerWidth },
               boxSizing: 'border-box',
             },
           }}
@@ -205,8 +228,8 @@ export const DashboardLayout = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { md: `calc(100% - ${drawerWidth}px)` },
+          p: { xs: 1.5, sm: 2, md: 3 },
+          width: { md: `calc(100% - ${desktopDrawerWidth}px)` },
           minHeight: '100vh',
           backgroundColor: (theme) => theme.palette.background.default,
         }}

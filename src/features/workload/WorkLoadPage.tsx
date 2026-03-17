@@ -17,7 +17,9 @@ import {
   TableHead,
   TableRow,
   Typography,
+  useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/AuthContext'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
@@ -102,6 +104,8 @@ const resolveGradeCurriculum = (curricula: Curriculum[], gradeLevel: number) => 
 
 export const WorkLoadPage = () => {
   const { user } = useAuth()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
   const [selectedGrade, setSelectedGrade] = useState<number | ''>('')
@@ -584,56 +588,21 @@ export const WorkLoadPage = () => {
         </Stack>
       </Paper>
 
-      <Paper sx={{ p: 0 }}>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell
-                  sx={{
-                    minWidth: 240,
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 3,
-                    backgroundColor: 'background.paper',
-                    boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
-                  }}
-                >
-                  Asignatura
-                </TableCell>
-                <TableCell sx={{ minWidth: 110 }}>Horas</TableCell>
-                {selectedGroups.map((group) => (
-                  <TableCell key={group.classGroupId} sx={{ minWidth: 220 }}>
-                    {group.gradeLevel}
-                    {group.section}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {subjectRows.map((row) => (
-                <TableRow key={row.subjectId} hover>
-                  <TableCell
-                    sx={{
-                      position: 'sticky',
-                      left: 0,
-                      zIndex: 2,
-                      backgroundColor: 'background.paper',
-                      boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
-                    }}
-                  >
-                    <Stack spacing={0.5}>
-                      <Typography fontWeight={600}>
-                        {row.subjectName}
-                      </Typography>
+      <Paper sx={{ p: isMobile ? 2 : 0 }}>
+        {isMobile ? (
+          <Stack spacing={1.5}>
+            {subjectRows.map((row) => (
+              <Paper key={row.subjectId} variant="outlined" sx={{ p: 1.5 }}>
+                <Stack spacing={1.25}>
+                  <Box>
+                    <Typography fontWeight={600}>{row.subjectName}</Typography>
+                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.75 }}>
+                      <Chip size="small" label={`${row.weeklyHours} horas`} />
                       {row.doubleSessionRequired ? (
-                        <Typography variant="body2" color="text.secondary">
-                          Requiere bloque doble
-                        </Typography>
+                        <Chip size="small" variant="outlined" label="Bloque doble" />
                       ) : null}
                     </Stack>
-                  </TableCell>
-                  <TableCell>{row.weeklyHours}</TableCell>
+                  </Box>
                   {selectedGroups.map((group) => {
                     const key = cellKey(row.subjectId, group.classGroupId)
                     const availableTeachers = teachersForSubject(row.subjectId)
@@ -643,13 +612,20 @@ export const WorkLoadPage = () => {
                     const shouldShowCurrentTeacher =
                       Boolean(currentTeacher) &&
                       !availableTeachers.some((teacher) => teacher.nationalId === currentValue)
+
                     return (
-                      <TableCell
+                      <Box
                         key={key}
                         sx={{
-                          backgroundColor: hasChanged ? 'action.hover' : 'inherit',
+                          p: 1,
+                          borderRadius: 1,
+                          backgroundColor: hasChanged ? 'action.hover' : 'background.default',
                         }}
                       >
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
+                          Grupo {group.gradeLevel}
+                          {group.section}
+                        </Typography>
                         <FormControl fullWidth size="small">
                           <Select
                             value={currentValue}
@@ -684,14 +660,122 @@ export const WorkLoadPage = () => {
                             ))}
                           </Select>
                         </FormControl>
-                      </TableCell>
+                      </Box>
                     )
                   })}
+                </Stack>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell
+                    sx={{
+                      minWidth: 240,
+                      position: 'sticky',
+                      left: 0,
+                      zIndex: 3,
+                      backgroundColor: 'background.paper',
+                      boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
+                    }}
+                  >
+                    Asignatura
+                  </TableCell>
+                  <TableCell sx={{ minWidth: 110 }}>Horas</TableCell>
+                  {selectedGroups.map((group) => (
+                    <TableCell key={group.classGroupId} sx={{ minWidth: 220 }}>
+                      {group.gradeLevel}
+                      {group.section}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {subjectRows.map((row) => (
+                  <TableRow key={row.subjectId} hover>
+                    <TableCell
+                      sx={{
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                        backgroundColor: 'background.paper',
+                        boxShadow: (theme) => `1px 0 0 ${theme.palette.divider}`,
+                      }}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography fontWeight={600}>
+                          {row.subjectName}
+                        </Typography>
+                        {row.doubleSessionRequired ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Requiere bloque doble
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>{row.weeklyHours}</TableCell>
+                    {selectedGroups.map((group) => {
+                      const key = cellKey(row.subjectId, group.classGroupId)
+                      const availableTeachers = teachersForSubject(row.subjectId)
+                      const currentValue = getAssignedTeacherId(row.subjectId, group.classGroupId)
+                      const hasChanged = key in draftAssignments
+                      const currentTeacher = currentValue ? teacherById.get(currentValue) ?? null : null
+                      const shouldShowCurrentTeacher =
+                        Boolean(currentTeacher) &&
+                        !availableTeachers.some((teacher) => teacher.nationalId === currentValue)
+                      return (
+                        <TableCell
+                          key={key}
+                          sx={{
+                            backgroundColor: hasChanged ? 'action.hover' : 'inherit',
+                          }}
+                        >
+                          <FormControl fullWidth size="small">
+                            <Select
+                              value={currentValue}
+                              displayEmpty
+                              onChange={(event) => {
+                                const nextValue = String(event.target.value)
+                                const originalValue = assignmentState.assignments.get(key)?.teacherId ?? ''
+                                setDraftAssignments((previous) => {
+                                  const next = { ...previous }
+                                  if (nextValue === originalValue) {
+                                    delete next[key]
+                                  } else {
+                                    next[key] = nextValue
+                                  }
+                                  return next
+                                })
+                                setSaveError(null)
+                                setSaveSuccess(null)
+                              }}
+                              disabled={duplicateLabels.length > 0}
+                            >
+                              <MenuItem value="">Sin asignar</MenuItem>
+                              {shouldShowCurrentTeacher ? (
+                                <MenuItem value={currentValue}>
+                                  {teacherLabel(currentTeacher as User)} (actual)
+                                </MenuItem>
+                              ) : null}
+                              {availableTeachers.map((teacher) => (
+                                <MenuItem key={teacher.nationalId} value={teacher.nationalId}>
+                                  {teacherLabel(teacher)}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
       </Paper>
     </Stack>
   )

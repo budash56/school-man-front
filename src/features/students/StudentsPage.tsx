@@ -21,8 +21,10 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
 } from '@mui/material'
 import { Refresh, Search } from '@mui/icons-material'
+import { useTheme } from '@mui/material/styles'
 import { useQuery } from '@tanstack/react-query'
 import { coursesApi } from '../../api/coursesApi'
 import { enrollmentsApi } from '../../api/enrollmentsApi'
@@ -61,6 +63,8 @@ const formatGuardian = (name: string | null, relationship: string | null) => {
 
 export const StudentsPage = () => {
   const { user } = useAuth()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
@@ -475,6 +479,53 @@ export const StudentsPage = () => {
                 <Box display="flex" justifyContent="center" alignItems="center" minHeight={240}>
                   <CircularProgress aria-label="cargando estudiantes del profesor" />
                 </Box>
+              ) : isMobile ? (
+                <Box px={2} pb={2}>
+                  {filteredTeacherEnrollments.length > 0 ? (
+                    <Stack spacing={1.5}>
+                      {filteredTeacherEnrollments.map((enrollment) => (
+                        <Paper
+                          key={enrollment.enrollmentId}
+                          variant="outlined"
+                          sx={{ p: 1.5, cursor: 'pointer' }}
+                          onClick={() => handleRowClick(enrollment.studentId)}
+                        >
+                          <Stack spacing={0.75}>
+                            <Typography fontWeight={600}>
+                              {enrollment.student
+                                ? `${enrollment.student.firstName} ${enrollment.student.lastName}`
+                                : 'Sin información'}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              Documento: {enrollment.student?.nationalId ?? 'Sin documento'}
+                            </Typography>
+                            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                              <Chip
+                                size="small"
+                                label={`Grupo ${
+                                  enrollment.classGroupId
+                                    ? teacherGroupLabelById.get(enrollment.classGroupId) ?? 'Sin grupo'
+                                    : 'Sin grupo'
+                                }`}
+                              />
+                              <Chip
+                                size="small"
+                                variant="outlined"
+                                label={`Género: ${enrollment.student?.gender ?? 'Sin dato'}`}
+                              />
+                            </Stack>
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Alert severity="info">
+                      {isFetchingTeacherStudents
+                        ? 'Actualizando lista...'
+                        : 'No hay estudiantes que coincidan con la búsqueda.'}
+                    </Alert>
+                  )}
+                </Box>
               ) : (
                 <TableContainer>
                   <Table>
@@ -537,6 +588,62 @@ export const StudentsPage = () => {
             <Box display="flex" justifyContent="center" alignItems="center" minHeight={280}>
               <CircularProgress aria-label="cargando estudiantes" />
             </Box>
+          ) : isMobile ? (
+            <>
+              <Box p={2}>
+                {hasData && data ? (
+                  <Stack spacing={1.5}>
+                    {data.data.map((student) => (
+                      <Paper
+                        key={student.studentId}
+                        variant="outlined"
+                        sx={{ p: 1.5, cursor: 'pointer' }}
+                        onClick={() => handleRowClick(student.studentId)}
+                      >
+                        <Stack spacing={0.75}>
+                          <Typography fontWeight={600}>
+                            {student.firstName} {student.lastName}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Documento: {student.nationalId}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Nacimiento: {formatDate(student.dob)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Acudiente: {formatGuardian(student.guardianName, student.guardianRelationship)}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Teléfono: {student.guardianPhone || 'Sin información'}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            color={student.isActive ? 'success' : 'default'}
+                            variant={student.isActive ? 'filled' : 'outlined'}
+                            label={student.isActive ? 'Activo' : 'Inactivo'}
+                            sx={{ alignSelf: 'flex-start' }}
+                          />
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Alert severity="info">
+                    {isFetching ? 'Actualizando lista...' : 'No hay estudiantes que coincidan con la búsqueda.'}
+                  </Alert>
+                )}
+              </Box>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component="div"
+                count={data?.total ?? 0}
+                rowsPerPage={pageSize}
+                page={page}
+                onPageChange={handleChangePage}
+                onRowsPerPageChange={handleChangeRowsPerPage}
+                labelRowsPerPage="Filas"
+              />
+            </>
           ) : (
             <>
               <TableContainer>

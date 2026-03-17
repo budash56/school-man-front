@@ -19,7 +19,9 @@ import {
   TableRow,
   TextField,
   Typography,
+  useMediaQuery,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { attendanceApi, type AttendanceStatus } from '../../api/attendanceApi'
 import { coursesApi } from '../../api/coursesApi'
@@ -48,6 +50,8 @@ const formatFullName = (firstName: string | null, lastName: string | null) =>
 
 export const AttendancePage = () => {
   const { user } = useAuth()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const queryClient = useQueryClient()
   const today = useMemo(() => new Date(), [])
   const [selectedDate, setSelectedDate] = useState(toIsoDate(today))
@@ -314,7 +318,7 @@ export const AttendancePage = () => {
               <Chip size="small" label="Seleccionado" color="primary" />
             </Stack>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 1 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: 0.5, sm: 1 } }}>
               {weekdayLabels.map((label) => (
                 <Typography key={label} variant="caption" color="text.secondary" textAlign="center">
                   {label}
@@ -338,8 +342,9 @@ export const AttendancePage = () => {
                     disabled={isWeekendDisabled}
                     sx={{
                       minWidth: 0,
-                      px: 0.5,
-                      py: 1,
+                      px: { xs: 0.25, sm: 0.5 },
+                      py: { xs: 0.75, sm: 1 },
+                      minHeight: { xs: 54, sm: 64 },
                       opacity: day.isCurrentMonth ? 1 : 0.45,
                       borderColor: day.isWeekend ? 'divider' : undefined,
                     }}
@@ -504,68 +509,125 @@ export const AttendancePage = () => {
             ) : null}
 
             {filteredStudents.length ? (
-              <TableContainer>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Estudiante</TableCell>
-                      <TableCell align="center">Estado</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {filteredStudents.map((student) => {
-                      const value = draftStatuses[student.studentId] ?? ''
-                      const currentRecord = recordsByStudentId.get(student.studentId)
-                      return (
-                        <TableRow key={student.studentId}>
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography variant="body2">
-                                {formatFullName(student.firstName, student.lastName)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                ID {student.studentId}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
-                          <TableCell align="center">
-                            {canEditAttendance ? (
-                              <FormControl size="small" sx={{ minWidth: 180 }}>
-                                <Select
-                                  value={value}
-                                  onChange={(event) =>
-                                    setDraftStatuses((previous) => ({
-                                      ...previous,
-                                      [student.studentId]: event.target.value as AttendanceStatus | '',
-                                    }))
-                                  }
-                                  disabled={nonInstructionalDay}
-                                >
-                                  <MenuItem value="">Sin marcar</MenuItem>
-                                  <MenuItem value="P">Presente</MenuItem>
-                                  <MenuItem value="A">Ausente</MenuItem>
-                                  <MenuItem value="AE">Ausencia excusada</MenuItem>
-                                </Select>
-                              </FormControl>
-                            ) : value ? (
-                              <Chip label={statusLabel[value]} color={value === 'P' ? 'success' : value === 'A' ? 'error' : 'warning'} />
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">
-                                Sin marcar
-                              </Typography>
-                            )}
-                            {currentRecord ? (
-                              <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                                Registro existente
-                              </Typography>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              isMobile ? (
+                <Stack spacing={1.25}>
+                  {filteredStudents.map((student) => {
+                    const value = draftStatuses[student.studentId] ?? ''
+                    const currentRecord = recordsByStudentId.get(student.studentId)
+                    return (
+                      <Paper key={student.studentId} variant="outlined" sx={{ p: 1.5 }}>
+                        <Stack spacing={1}>
+                          <Box>
+                            <Typography fontWeight={600}>
+                              {formatFullName(student.firstName, student.lastName)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              ID {student.studentId}
+                            </Typography>
+                          </Box>
+                          {canEditAttendance ? (
+                            <FormControl size="small" fullWidth>
+                              <Select
+                                value={value}
+                                onChange={(event) =>
+                                  setDraftStatuses((previous) => ({
+                                    ...previous,
+                                    [student.studentId]: event.target.value as AttendanceStatus | '',
+                                  }))
+                                }
+                                disabled={nonInstructionalDay}
+                              >
+                                <MenuItem value="">Sin marcar</MenuItem>
+                                <MenuItem value="P">Presente</MenuItem>
+                                <MenuItem value="A">Ausente</MenuItem>
+                                <MenuItem value="AE">Ausencia excusada</MenuItem>
+                              </Select>
+                            </FormControl>
+                          ) : value ? (
+                            <Chip
+                              label={statusLabel[value]}
+                              color={value === 'P' ? 'success' : value === 'A' ? 'error' : 'warning'}
+                              sx={{ alignSelf: 'flex-start' }}
+                            />
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              Sin marcar
+                            </Typography>
+                          )}
+                          {currentRecord ? (
+                            <Typography variant="caption" color="text.secondary">
+                              Registro existente
+                            </Typography>
+                          ) : null}
+                        </Stack>
+                      </Paper>
+                    )
+                  })}
+                </Stack>
+              ) : (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Estudiante</TableCell>
+                        <TableCell align="center">Estado</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filteredStudents.map((student) => {
+                        const value = draftStatuses[student.studentId] ?? ''
+                        const currentRecord = recordsByStudentId.get(student.studentId)
+                        return (
+                          <TableRow key={student.studentId}>
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography variant="body2">
+                                  {formatFullName(student.firstName, student.lastName)}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  ID {student.studentId}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell align="center">
+                              {canEditAttendance ? (
+                                <FormControl size="small" sx={{ minWidth: 180 }}>
+                                  <Select
+                                    value={value}
+                                    onChange={(event) =>
+                                      setDraftStatuses((previous) => ({
+                                        ...previous,
+                                        [student.studentId]: event.target.value as AttendanceStatus | '',
+                                      }))
+                                    }
+                                    disabled={nonInstructionalDay}
+                                  >
+                                    <MenuItem value="">Sin marcar</MenuItem>
+                                    <MenuItem value="P">Presente</MenuItem>
+                                    <MenuItem value="A">Ausente</MenuItem>
+                                    <MenuItem value="AE">Ausencia excusada</MenuItem>
+                                  </Select>
+                                </FormControl>
+                              ) : value ? (
+                                <Chip label={statusLabel[value]} color={value === 'P' ? 'success' : value === 'A' ? 'error' : 'warning'} />
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  Sin marcar
+                                </Typography>
+                              )}
+                              {currentRecord ? (
+                                <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+                                  Registro existente
+                                </Typography>
+                              ) : null}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )
             ) : null}
 
             {roster?.students?.length && filteredStudents.length === 0 ? (

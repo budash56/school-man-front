@@ -8,7 +8,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 - **Routing:** `react-router-dom@6` handles public `/login` and protected `/dashboard/*` routes. `ProtectedRoute` ensures users are authenticated before visiting any dashboard page and enforces password rotation when `mustChangePassword` is true.
 - **API Access:** `src/api/apiClient.ts` centralizes fetch logic, attaches JWT tokens, serializes query params, and converts server errors into typed `ApiError`s that UI components can surface.
 - **State & Theming:** Local component state + TanStack Query for server-cache, `ColorModeProvider` wraps MUI’s `ThemeProvider` with a persisted light/dark toggle.
-- **UI Scope:** Coordinator/admin-facing intranet for managing students, enrollments, class groups, discipline, school years, curriculum, classrooms/buildings, users, and related dashboards. Recent work added a fully data-driven “School years” explorer, a bulk teacher import flow, password-change enforcement, and user profile actions.
+- **UI Scope:** LAN-only intranet for admins, coordinators, registrars, and teachers. Current flows cover students, enrollments, school years, curriculum, subject areas, buildings/classrooms, workload assignment, attendance/calendar, users, and related dashboards. Recent work added the attendance calendar, workload matrix, teacher-scoped student browsing, exact teacher-subject assignment, and a phone-readability pass for the densest screens.
 
 ## Repository Layout
 
@@ -16,17 +16,18 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 | ---- | ----------- |
 | `src/main.tsx` | Bootstraps React root with Router, QueryClientProvider, AuthProvider, and ColorModeProvider. |
 | `src/App.tsx` | Declares all app routes (`/login`, `/dashboard/*`) and guards protected sections. |
-| `src/layouts/DashboardLayout.tsx` | Shell with sidebar navigation, top app bar, role display, color-mode toggle, and logout handling. |
+| `src/layouts/DashboardLayout.tsx` | Shell with responsive sidebar navigation, top app bar, role display, color-mode toggle, and logout handling. |
 | `src/features/auth/` | Login page, context (`AuthProvider`), hook (`useAuth`), `ProtectedRoute`, and `ChangePasswordPage`. Handles login, logout, token persistence, `/auth/me` restore, and mandatory password change. |
 | `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, etc.). |
-| `src/features/*` | Feature folders (students, enrollments, classGroups, discipline, dashboard, schoolYears). Each folder contains pages, hooks, and components for that domain. |
+| `src/features/*` | Feature folders (students, enrollments, attendance, classrooms, curriculum, dashboard, discipline, schoolYears, subjects, users, workload). Each folder contains pages, hooks, and components for that domain. |
 | `src/theme/` | `ColorModeProvider` and shared theme configuration (persistent light/dark toggle). |
 | `docs/` | Project documentation (`frontend-overview.md`). |
 
 ## Runtime Architecture
 
 ### Application Shell & Navigation
-- **DashboardLayout:** Houses the persistent sidebar and app bar. It lists nav items (“Dashboard”, “Students”, “Enrollments”, “School years”, “Discipline”), highlights the active path, and exposes logout + color-mode controls. The user’s name and role are shown using `useAuth()`.
+- **DashboardLayout:** Houses the sidebar and app bar. It lists nav items (“Dashboard”, “Students”, “Asistencia”, “Enrollments”, “Currículo”, “School years”, “Discipline”, “Áreas”, “Classrooms”, “WorkLoad”), highlights the active path, and exposes logout + color-mode controls. The user’s name and role are shown using `useAuth()`.
+- **Responsive shell:** The layout now adapts to phone widths using MUI breakpoints. On small screens the drawer becomes a temporary overlay, paddings shrink, and low-value header text is hidden so the content area gets more usable space.
 - **ProtectedRoute:** Wraps all `/dashboard/*` routes. If `useAuth()` reports no user, it redirects to `/login`, optionally preserving the desired destination.
 - **Password rotation:** When `user.mustChangePassword` is true (non-admin users), the app forces `/change-password` until a new password is set via `/auth/change-password`.
 - **ColorModeProvider:** Keeps a light/dark preference in `localStorage` and feeds MUI’s `ThemeProvider`.
@@ -49,9 +50,11 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 - **StudentsPage (/dashboard/students):**
   - Search by document/name, filter by school year (populated via real `/school-years`), manual refresh, and paginated MUI table.
   - Rows are clickable and route to StudentDetailPage via `useNavigate`.
+  - Teachers get a different entry flow: instead of a flat list, they first see the grades they teach, plus chips for the groups inside each grade. From there they can open either the whole grade roster or a single group roster.
+  - Student cards replace the table on phone-sized screens for both teacher and admin views.
 - **StudentDetailPage:**
   - Uses `useParams` + `useStudent`, `useStudentEnrollments`, and `useStudentDiscipline` hooks to load detailed info, latest enrollments, and recent disciplinary records.
-  - Displays guardian info, status chip, and two cards with lists for enrollments and discipline. Each list handles loading/error states independently.
+  - Displays guardian info, gender, status chip, and two cards with lists for enrollments and discipline. Each list handles loading/error states independently.
 
 ### Enrollment Flow
 - **EnrollmentWizardPage (/dashboard/enrollments/new):**
@@ -62,6 +65,43 @@ This document describes the current behaviour of the SchoolMan frontend codebase
   - Year/class group selectors are populated using live `/school-years` and `/class-groups` queries; no mock grade lists.
 - **EnrollmentsPage (/dashboard/enrollments):**
   - Simplified to a CTA (“Iniciar matrícula”) explaining that the full flow lives in the wizard.
+  - Student registration now requires gender (`Femenino`, `Masculino`, `No Binario`) and constrains guardian relationship to the allowed options, with a free-text fallback only when “Otro” is selected.
+
+### Attendance & Calendar
+- **AttendancePage (/dashboard/attendance):**
+  - Available to all authenticated roles.
+  - Uses a local Colombia holiday calendar helper to mark weekends and official holidays.
+  - Weekends are non-interactable in the calendar.
+  - Holidays remain visible and attendance editing is blocked on non-instructional days.
+  - Roles `admin`, `coordinator`, and `teacher` can edit; `registrar` is read-only.
+  - Loads the course list from `/courses`, the roster from `/attendance/sheet`, and the existing daily records from `/attendance`.
+  - Defaults every loaded student to `Presente` unless a saved record already exists.
+  - Includes group-local student search and mobile card rendering for attendance capture.
+  - The `Importar calendario` action is present but intentionally disabled; schedule import remains a TODO.
+
+### Curriculum, Subjects, and WorkLoad
+- **CurriculumPage (/dashboard/curriculum):**
+  - Manages grade curricula and curriculum items against the backend `curricula` and `curriculum-items` endpoints.
+  - Supports track-aware curriculum viewing while keeping the UI aligned with the active school-year setup.
+- **SubjectsPage (/dashboard/subjects):**
+  - Starts from subject areas and drills into the concrete subjects in each area.
+  - Teacher-specific visibility is enforced: professors only see the areas they belong to.
+  - The teacher assignment dialogs now work with exact subject permissions grouped by area, not just coarse area membership.
+- **WorkLoadPage (/dashboard/workload):**
+  - Visible for admins/coordinators.
+  - Only shows grades that already have created class groups and a usable curriculum.
+  - Builds the assignment matrix from curriculum subjects × class groups and persists teacher selections through `/course-instances` and `/courses`.
+  - Uses `teacher-subjects` as the source of truth for teacher eligibility.
+  - Includes a testing-only random assignment button.
+  - On phones it switches from the wide matrix table to stacked subject cards with per-group selectors.
+
+### Buildings, Classrooms, and Group Assignment
+- **ClassroomsPage (/dashboard/classrooms):**
+  - Combines building management, classroom management, and manual classroom assignment to groups.
+  - Buildings support special flags (`Laboratorio`, `Auditorio`, `Sala de informática`).
+  - Classroom names are generated from the selected building and next available sequence.
+  - The “Asignar Salones” flow lets admins/coordinators manually bind groups to classrooms, optionally store fixed locations, and override the preferred building filter when needed.
+  - Unassigned-student counts in that flow include total and gender breakdowns.
 
 ### School Years Explorer (/dashboard/class-groups)
 - **Data-driven chips:** `useSchoolYearsQuery` populates the year chips; selecting a year triggers `useClassGroupsQuery({ schoolYearId })` with real backend data. Static “1..11 / K0n” placeholders were removed.
@@ -72,14 +112,18 @@ This document describes the current behaviour of the SchoolMan frontend codebase
   - Students view displays a “Volver a grupos” button, uses `useStudentsByClassGroup` (which calls `/enrollments` + `/students/:id`), and renders a two-column table (`group section` | `student full name`). Rows link to the student detail page.
 - **Hooks:** `useStudentsByClassGroup` fetches enrollments for the current year/group (pageSize 200) and resolves each student via `studentsApi.getById`. Enabled only when both IDs are defined.
 
-### Discipline, Dashboards, and Other Routes
-- Placeholder pages exist for “Discipline” and “Dashboard” while backend endpoints are rolled out. They reuse the layout and will be wired next.
+### Discipline and Dashboard
+- **DashboardHomePage:** remains the landing page under `/dashboard`. It is a lightweight shell ready to consume the backend dashboard endpoints.
+- **DisciplinePage (/dashboard/discipline):**
+  - Teachers are constrained to the class groups assigned to them.
+  - The page consumes backend disciplinary records and student lookups, and surfaces role-appropriate actions.
 
 ### Users Management (/dashboard/users)
 - Admin-facing navigation entry for user management. The page itself supports admin and coordinator roles.
 - **Create user:** Requires email (testing). Shows the generated temporary password (based on last name + last 4 digits).
 - **Bulk import:** CSV/XLSX upload for teachers; shows created credentials + row-level errors.
 - **Profile view:** Displays contact info, teacher subjects, assigned groups, and includes a delete action with confirmation.
+- **Teacher qualification flow:** teacher eligibility is stored per exact subject. The page groups those subject choices by area so coordinators can assign what each teacher can actually teach without granting the whole area automatically.
 
 ## Data Fetching Helpers
 
@@ -94,7 +138,13 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled` guards, and explicit error surfaces for the UI.
 
 ## Auth & RBAC in the UI
-- Components rely on `useAuth().user.role` to tailor messaging, but the backend enforces all real RBAC rules. The frontend focuses on surfacing or hiding actions for non-admin roles (e.g., read-only views for teachers/registrar in classrooms, subjects/areas, school years, curriculum, enrollments, and users) while trusting HTTP 403s for final enforcement.
+- Components rely on `useAuth().user.role` to tailor messaging, but the backend enforces all real RBAC rules.
+- The frontend hides or downgrades actions for non-admin roles:
+  - teachers do not get enrollment, curriculum, school-year, classroom, or workload management links
+  - teacher students view is scoped to their own grades/groups
+  - subject-area visibility for teachers is reduced to the areas they actually teach
+  - attendance remains visible to all roles, but only editable for `admin`, `coordinator`, and `teacher`
+- Final authorization still depends on backend HTTP responses (`403`, `401`).
 
 ## Error & Loading Patterns
 - Every major section (lists, tables, cards) shows:
@@ -131,6 +181,11 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 - **Data-driven School Years page:** Replaced static grade/group placeholders with live `/school-years` + `/class-groups` data, including student rosters retrieved via real enrollments.
 - **Enrollment Wizard:** Streamlined entry point, added last enrollment context, edit-in-place for existing students, and ensured all selectors are populated from the backend.
 - **Users module:** Added bulk teacher import, required email on create (testing), and delete actions in the profile view.
+- **Attendance & calendar:** Added a dedicated attendance page with Colombian holiday logic, daily roster loading, status capture, and weekend blocking.
+- **Teacher students view:** Teachers now navigate students by grade/group instead of a single flat list.
+- **WorkLoad:** Added subject-to-teacher-to-group assignment driven by curriculum, class groups, and teacher-subject eligibility.
+- **Buildings/classrooms:** Added building flags, generated classroom names, and manual group-to-classroom assignment flows.
+- **Responsive phone pass:** dashboard shell, students, attendance, and workload now switch to more readable mobile layouts/cards on small screens.
 - **Password change enforcement:** Non-admin users flagged `mustChangePassword` are forced to `/change-password`.
 - **Timetable generator hidden:** Route and nav entry are disabled until the feature is ready.
 

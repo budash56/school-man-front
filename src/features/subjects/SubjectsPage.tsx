@@ -28,6 +28,7 @@ import {
   Typography,
   Switch,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { Add as AddIcon, ArrowBack as ArrowBackIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -248,6 +249,7 @@ type EditableArea = {
 
 export const SubjectsPage = () => {
   const { user } = useAuth()
+  const theme = useTheme()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
@@ -597,11 +599,21 @@ export const SubjectsPage = () => {
                 const highlight = area.isSpecialization
                   ? specializationColorMap.get(area.areaId)
                   : undefined
+                const contrastText = highlight
+                  ? theme.palette.getContrastText(highlight)
+                  : undefined
                 return (
                   <Paper
                     key={area.areaId}
                     variant="outlined"
-                    sx={highlight ? { backgroundColor: highlight } : undefined}
+                    sx={
+                      highlight
+                        ? {
+                            backgroundColor: highlight,
+                            color: contrastText,
+                          }
+                        : undefined
+                    }
                   >
                   <ButtonBase
                     onClick={() => {
@@ -617,13 +629,24 @@ export const SubjectsPage = () => {
                       gap: 0.5,
                     }}
                   >
-                    <Typography variant="h6">{area.name}</Typography>
+                    <Typography
+                      variant="h6"
+                      sx={highlight ? { color: contrastText } : undefined}
+                    >
+                      {area.name}
+                    </Typography>
                     {area.isSpecialization ? (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography
+                        variant="caption"
+                        sx={highlight ? { color: contrastText, opacity: 0.84 } : { color: 'text.secondary' }}
+                      >
                         Área de especialización
                       </Typography>
                     ) : null}
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      sx={highlight ? { color: contrastText, opacity: 0.84 } : { color: 'text.secondary' }}
+                    >
                       {area.subjects?.length ?? 0} asignaturas
                     </Typography>
                   </ButtonBase>
