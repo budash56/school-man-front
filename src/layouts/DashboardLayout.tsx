@@ -29,6 +29,7 @@ import {
   ManageAccounts as ManageAccountsIcon,
   Work as WorkIcon,
   EventAvailable as EventAvailableIcon,
+  TableChart as TableChartIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -74,6 +75,7 @@ export const DashboardLayout = () => {
       { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
       { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
       { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
+      { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
       { label: 'Enrollments', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
       { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
       { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },

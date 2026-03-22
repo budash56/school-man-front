@@ -17,6 +17,7 @@ import CurriculumPage from './features/curriculum/CurriculumPage'
 import UsersPage from './features/users/UsersPage'
 import WorkLoadPage from './features/workload/WorkLoadPage'
 import AttendancePage from './features/attendance/AttendancePage'
+import PlanillasPage from './features/planillas/PlanillasPage'
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="students" element={<StudentsPage />} />
           <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="attendance" element={<AttendancePage />} />
+          <Route path="planillas" element={<PlanillasPage />} />
           <Route path="enrollments" element={<EnrollmentsPage />} />
           <Route path="enrollments/new" element={<EnrollmentWizardPage />} />
           <Route path="curriculum" element={<CurriculumPage />} />

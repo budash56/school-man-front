@@ -682,14 +682,14 @@ export const UsersPage = () => {
         <DialogTitle>Importar docentes</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Archivo CSV o Excel con columnas: documento, nombres, apellidos, correo. Opcional: usuario, teléfono.
+            Archivo CSV o Excel (.xlsx) con columnas: documento, nombres, apellidos, correo. Opcional: usuario, teléfono.
           </Typography>
           <Button variant="outlined" component="label">
             Seleccionar archivo
             <input
               hidden
               type="file"
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null
                 setBulkFile(file)
