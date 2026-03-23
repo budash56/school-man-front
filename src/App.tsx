@@ -18,6 +18,17 @@ import UsersPage from './features/users/UsersPage'
 import WorkLoadPage from './features/workload/WorkLoadPage'
 import AttendancePage from './features/attendance/AttendancePage'
 import PlanillasPage from './features/planillas/PlanillasPage'
+import { useAuth } from './features/auth/AuthContext'
+
+function DashboardIndexPage() {
+  const { user } = useAuth()
+
+  if (user?.role === 'registrar') {
+    return <Navigate to="/dashboard/students" replace />
+  }
+
+  return <DashboardHomePage />
+}
 
 function App() {
   return (
@@ -26,21 +37,25 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<DashboardHomePage />} />
+          <Route index element={<DashboardIndexPage />} />
           <Route path="students" element={<StudentsPage />} />
           <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="planillas" element={<PlanillasPage />} />
-          <Route path="enrollments" element={<EnrollmentsPage />} />
-          <Route path="enrollments/new" element={<EnrollmentWizardPage />} />
-          <Route path="curriculum" element={<CurriculumPage />} />
-          <Route path="class-groups" element={<SchoolYearsStaticPage />} />
-          <Route path="discipline" element={<DisciplinePage />} />
-          <Route path="subjects" element={<SubjectsPage />} />
-          <Route path="classrooms" element={<ClassroomsPage />} />
-          <Route path="workload" element={<WorkLoadPage />} />
-          {/* Future version: timetable generator route */}
-          <Route path="users" element={<UsersPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinator', 'teacher']} />}>
+            <Route path="discipline" element={<DisciplinePage />} />
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinator']} />}>
+            <Route path="enrollments" element={<EnrollmentsPage />} />
+            <Route path="enrollments/new" element={<EnrollmentWizardPage />} />
+            <Route path="curriculum" element={<CurriculumPage />} />
+            <Route path="class-groups" element={<SchoolYearsStaticPage />} />
+            <Route path="subjects" element={<SubjectsPage />} />
+            <Route path="classrooms" element={<ClassroomsPage />} />
+            <Route path="workload" element={<WorkLoadPage />} />
+            {/* Future version: timetable generator route */}
+            <Route path="users" element={<UsersPage />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/login" replace />} />

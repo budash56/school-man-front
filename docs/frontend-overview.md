@@ -8,7 +8,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 - **Routing:** `react-router-dom@6` handles public `/login` and protected `/dashboard/*` routes. `ProtectedRoute` ensures users are authenticated before visiting any dashboard page and enforces password rotation when `mustChangePassword` is true.
 - **API Access:** `src/api/apiClient.ts` centralizes fetch logic, attaches JWT tokens, serializes query params, and converts server errors into typed `ApiError`s that UI components can surface.
 - **State & Theming:** Local component state + TanStack Query for server-cache, `ColorModeProvider` wraps MUI’s `ThemeProvider` with a persisted light/dark toggle.
-- **UI Scope:** LAN-only intranet for admins, coordinators, registrars, and teachers. Current flows cover students, enrollments, school years, curriculum, subject areas, buildings/classrooms, workload assignment, attendance/calendar, users, and related dashboards. Recent work added the attendance calendar, workload matrix, teacher-scoped student browsing, exact teacher-subject assignment, and a phone-readability pass for the densest screens.
+- **UI Scope:** LAN-only intranet for admins, coordinators, registrars, and teachers. Current flows cover students, enrollments, school years, curriculum, subject areas, buildings/classrooms, workload assignment, attendance/calendar, planillas import + teacher gradebooks, users, and related dashboards. Recent work added the attendance calendar, workload matrix, teacher-scoped student browsing, exact teacher-subject assignment, planillas roster editing, and a phone-readability pass for the densest screens.
 
 ## Repository Layout
 
@@ -19,7 +19,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 | `src/layouts/DashboardLayout.tsx` | Shell with responsive sidebar navigation, top app bar, role display, color-mode toggle, and logout handling. |
 | `src/features/auth/` | Login page, context (`AuthProvider`), hook (`useAuth`), `ProtectedRoute`, and `ChangePasswordPage`. Handles login, logout, token persistence, `/auth/me` restore, and mandatory password change. |
 | `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, etc.). |
-| `src/features/*` | Feature folders (students, enrollments, attendance, classrooms, curriculum, dashboard, discipline, schoolYears, subjects, users, workload). Each folder contains pages, hooks, and components for that domain. |
+| `src/features/*` | Feature folders (students, enrollments, attendance, classrooms, curriculum, dashboard, discipline, planillas, schoolYears, subjects, users, workload). Each folder contains pages, hooks, and components for that domain. |
 | `src/theme/` | `ColorModeProvider` and shared theme configuration (persistent light/dark toggle). |
 | `docs/` | Project documentation (`frontend-overview.md`). |
 
@@ -35,7 +35,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 ### Data Access & Caching
 - **apiClient:** Builds URLs from `import.meta.env.VITE_API_BASE_URL` (default `/api`), attaches Bearer tokens through a getter registered by `AuthProvider`, handles JSON parsing, and throws `ApiError` with status/message.
 - **AuthProvider:** Stores `accessToken` + `user`, syncs tokens to `localStorage`, and exposes `login`, `logout`, and `refreshUser`. Login persists the token then routes coordinators into `/dashboard`.
-- **TanStack Query:** Configured via `src/app/queryClient.ts` with `staleTime = 60s`, `retry = 1`, and disabled window refetching. Feature hooks (e.g., `useStudentsQuery`, `useSchoolYearsQuery`, `useClassGroupsQuery`, `useStudentsByClassGroup`) use descriptive query keys so caches remain isolated.
+- **TanStack Query:** Configured via `src/app/queryClient.ts` with `staleTime = 60s`, `retry = 1`, and disabled window refetching. Feature hooks (e.g., `useStudentsQuery`, `useSchoolYearsQuery`, `useClassGroupsQuery`, `useStudentsByClassGroup`) use descriptive query keys so caches remain isolated. The planillas page overrides this with a longer-lived summary cache (`staleTime = 5 min`), keeps previous list data visible while filters refetch, defers the group search input before querying, and prefetches selected-sheet detail payloads on chip focus/hover.
 
 ## Feature Modules
 
@@ -78,6 +78,19 @@ This document describes the current behaviour of the SchoolMan frontend codebase
   - Defaults every loaded student to `Presente` unless a saved record already exists.
   - Includes group-local student search and mobile card rendering for attendance capture.
   - The `Importar calendario` action is present but intentionally disabled; schedule import remains a TODO.
+
+### Planillas (/dashboard/planillas)
+- Shared route with role-based modes:
+  - admins/coordinators import XLSX planillas, repair missing document IDs, manage specialization metadata for grades 10-11, and bulk-finalize every loaded sheet whose pending count is zero
+  - teachers open the same planilla records as an interactive gradebook with period toggles and `S/A/B/J` entry for `Cog.`, `Proc.`, and `Act.`
+- The grade/group picker is intentionally lightweight:
+  - `GET /planillas` only returns summary cards (`total`, `resolved`, `pending`, `retired`) for each group
+  - the full student grid is loaded only through `GET /planillas/:id` once a specific sheet is selected
+- Performance behavior on the page:
+  - the group filter uses `useDeferredValue`, so the list does not refetch on every keystroke
+  - list queries use `placeholderData: keepPreviousData`, avoiding blank states while filters or year changes are in flight
+  - selected planilla detail is prefetched for the active/first sheet and again on chip hover/focus, so switching between groups feels much faster
+- Teacher roster cells remain keyboard-friendly even though they render as dropdowns: tab into a slot and type `S`, `A`, `B`, or `J` to set the value immediately.
 
 ### Curriculum, Subjects, and WorkLoad
 - **CurriculumPage (/dashboard/curriculum):**
@@ -184,6 +197,7 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 - **Attendance & calendar:** Added a dedicated attendance page with Colombian holiday logic, daily roster loading, status capture, and weekend blocking.
 - **Teacher students view:** Teachers now navigate students by grade/group instead of a single flat list.
 - **WorkLoad:** Added subject-to-teacher-to-group assignment driven by curriculum, class groups, and teacher-subject eligibility.
+- **Planillas performance pass:** The list now renders from summary-only payloads, defers group-search refetches, and prefetches selected group details so heavy gradebook data loads only when needed.
 - **Buildings/classrooms:** Added building flags, generated classroom names, and manual group-to-classroom assignment flows.
 - **Responsive phone pass:** dashboard shell, students, attendance, and workload now switch to more readable mobile layouts/cards on small screens.
 - **Password change enforcement:** Non-admin users flagged `mustChangePassword` are forced to `/change-password`.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useDeferredValue, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   Alert,
   Box,
@@ -15,13 +15,20 @@ import {
   Paper,
   Select,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from '@mui/material'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { subjectAreasApi, type SubjectArea } from '../../api/subjectAreasApi'
+import { termsApi, type Term } from '../../api/termsApi'
 import { useAuth } from '../auth/AuthContext'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
 import {
@@ -29,6 +36,8 @@ import {
   type FinalizePlanillaResult,
   type PlanillaRow,
   type PlanillaSheet,
+  type PlanillaSheetSummary,
+  type PlanillaSummary,
 } from '../../api/planillasApi'
 
 type MetadataDraft = {
@@ -37,6 +46,29 @@ type MetadataDraft = {
   periodLabel: string
   specializationName: string
   specializationAreaId: number | null
+}
+
+type ProfessorPeriodState = {
+  editable: boolean
+  label: string
+  color: 'default' | 'success' | 'warning'
+  helperText: string
+}
+
+type ProfessorPeriodColumn = {
+  key: string
+  label: string
+  shortLabel: string
+}
+
+type ProfessorPeriodDefinition = {
+  period: number
+  columns: ProfessorPeriodColumn[]
+}
+
+type ProfessorVisibleColumn = ProfessorPeriodColumn & {
+  period: number
+  editable: boolean
 }
 
 const toOptionalNumber = (value: unknown) => {
@@ -98,6 +130,231 @@ const buildMetadataDraft = (planilla: PlanillaSheet | undefined): MetadataDraft 
 
 const normalizeDigits = (value: string) => value.replace(/\D+/g, '')
 
+const PROFESSOR_PERIODS: ProfessorPeriodDefinition[] = [
+  {
+    period: 1,
+    columns: [
+      { key: 'cog_1', label: 'Cognitivo', shortLabel: 'Cog.' },
+      { key: 'proc_1', label: 'Procedimental', shortLabel: 'Proc.' },
+      { key: 'act_1', label: 'Actitudinal', shortLabel: 'Act.' },
+    ],
+  },
+  {
+    period: 2,
+    columns: [
+      { key: 'cog_2', label: 'Cognitivo', shortLabel: 'Cog.' },
+      { key: 'proc_2', label: 'Procedimental', shortLabel: 'Proc.' },
+      { key: 'act_2', label: 'Actitudinal', shortLabel: 'Act.' },
+    ],
+  },
+  {
+    period: 3,
+    columns: [
+      { key: 'cog_3', label: 'Cognitivo', shortLabel: 'Cog.' },
+      { key: 'proc_3', label: 'Procedimental', shortLabel: 'Proc.' },
+      { key: 'act_3', label: 'Actitudinal', shortLabel: 'Act.' },
+    ],
+  },
+  {
+    period: 4,
+    columns: [
+      { key: 'cog_4', label: 'Cognitivo', shortLabel: 'Cog.' },
+      { key: 'proc_4', label: 'Procedimental', shortLabel: 'Proc.' },
+      { key: 'act_4', label: 'Actitudinal', shortLabel: 'Act.' },
+    ],
+  },
+]
+
+const PROFESSOR_GRADE_CELL_KEYS = new Set(
+  PROFESSOR_PERIODS.flatMap(({ columns }) => columns.map((column) => column.key)),
+)
+
+const normalizeLetterMark = (value: string) => {
+  const normalized = value.trim().toUpperCase()
+  return ['S', 'A', 'B', 'J'].includes(normalized) ? normalized : ''
+}
+
+const LETTER_MARK_OPTIONS = ['', 'S', 'A', 'B', 'J'] as const
+const RANDOM_LETTER_MARKS = ['S', 'A', 'B', 'J'] as const
+const RANDOM_NATIONAL_ID_MIN = 100_000_000
+const RANDOM_NATIONAL_ID_RANGE = 900_000_000
+
+const professorGradeSelectBaseStyle: CSSProperties = {
+  width: '100%',
+  minWidth: '72px',
+  padding: '6px 8px',
+  borderRadius: '8px',
+  border: '1px solid var(--planilla-grade-cell-border)',
+  backgroundColor: 'var(--planilla-grade-cell-bg)',
+  color: 'var(--planilla-grade-cell-text)',
+  font: 'inherit',
+  textAlign: 'center',
+  textTransform: 'uppercase',
+  colorScheme: 'var(--planilla-grade-cell-color-scheme)',
+}
+
+const professorGradeSelectDisabledStyle: CSSProperties = {
+  ...professorGradeSelectBaseStyle,
+  backgroundColor: 'var(--planilla-grade-cell-bg-disabled)',
+  color: 'var(--planilla-grade-cell-text)',
+}
+
+type ProfessorGridRowProps = {
+  row: PlanillaRow
+  columns: ProfessorVisibleColumn[]
+  onCellChange: (rowId: string, key: string, value: string) => void
+}
+
+const ProfessorGridRow = memo(
+  function ProfessorGridRow({ row, columns, onCellChange }: ProfessorGridRowProps) {
+    return (
+      <TableRow hover>
+        <TableCell>
+          <Stack spacing={0.5}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {row.studentName}
+            </Typography>
+            <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+              {row.retired ? <Chip size="small" color="warning" label="RET" /> : null}
+              {row.note ? (
+                <Typography variant="caption" color="text.secondary">
+                  {row.note}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Stack>
+        </TableCell>
+        {columns.map((column) => (
+          <TableCell key={`${row.rowId}-${column.key}`} align="center" sx={{ p: 0.75 }}>
+            <select
+              aria-label={`${row.studentName} ${column.label} periodo ${column.period}`}
+              disabled={!column.editable}
+              onChange={(event) => onCellChange(row.rowId, column.key, event.target.value)}
+              onKeyDown={(event) => {
+                if (!column.editable) {
+                  return
+                }
+
+                const key = event.key
+
+                if (key === 'Backspace' || key === 'Delete') {
+                  event.preventDefault()
+                  onCellChange(row.rowId, column.key, '')
+                  return
+                }
+
+                if (
+                  key === 'Tab' ||
+                  key === 'Shift' ||
+                  key === 'ArrowLeft' ||
+                  key === 'ArrowRight' ||
+                  key === 'ArrowUp' ||
+                  key === 'ArrowDown' ||
+                  key === 'Home' ||
+                  key === 'End' ||
+                  key === 'Enter' ||
+                  key === ' '
+                ) {
+                  return
+                }
+
+                const normalizedKey = normalizeLetterMark(key)
+                if (!normalizedKey) {
+                  event.preventDefault()
+                  return
+                }
+
+                event.preventDefault()
+                onCellChange(row.rowId, column.key, normalizedKey)
+              }}
+              style={
+                column.editable
+                  ? professorGradeSelectBaseStyle
+                  : professorGradeSelectDisabledStyle
+              }
+              value={normalizeLetterMark(row.cells[column.key] ?? '')}
+            >
+              {LETTER_MARK_OPTIONS.map((option) => (
+                <option key={option || 'empty'} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </TableCell>
+        ))}
+      </TableRow>
+    )
+  },
+  (previousProps, nextProps) =>
+    previousProps.row === nextProps.row && previousProps.columns === nextProps.columns,
+)
+
+const toDateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const formatDateLabel = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return new Intl.DateTimeFormat('es-CO', {
+    day: '2-digit',
+    month: 'short',
+  }).format(parsed)
+}
+
+const buildProfessorPeriodState = (
+  period: number,
+  term: Term | undefined,
+  todayKey: string,
+  enableFallbackEditing: boolean,
+): ProfessorPeriodState => {
+  if (!term) {
+    return enableFallbackEditing
+      ? {
+          editable: true,
+          label: 'Abierto',
+          color: 'success',
+          helperText: 'Sin calendario configurado',
+        }
+      : {
+          editable: false,
+          label: 'Sin fecha',
+          color: 'default',
+          helperText: `Periodo ${period} sin fechas configuradas`,
+        }
+  }
+
+  if (todayKey < term.startDate) {
+    return {
+      editable: false,
+      label: 'Próximo',
+      color: 'warning',
+      helperText: `Abre ${formatDateLabel(term.startDate)}`,
+    }
+  }
+
+  if (todayKey > term.endDate) {
+    return {
+      editable: false,
+      label: 'Cerrado',
+      color: 'default',
+      helperText: `Cerró ${formatDateLabel(term.endDate)}`,
+    }
+  }
+
+  return {
+    editable: true,
+    label: 'Abierto',
+    color: 'success',
+    helperText: `${formatDateLabel(term.startDate)} - ${formatDateLabel(term.endDate)}`,
+  }
+}
+
 const buildMetadataPayload = (
   draftMetadata: MetadataDraft,
   planilla: PlanillaSheet | null,
@@ -122,7 +379,7 @@ const buildMetadataPayload = (
   return payload
 }
 
-const buildSummary = (rows: PlanillaRow[]) => {
+const buildSummary = (rows: PlanillaRow[]): PlanillaSummary => {
   return rows.reduce(
     (accumulator, row) => {
       accumulator.total += 1
@@ -140,6 +397,7 @@ const buildSummary = (rows: PlanillaRow[]) => {
 }
 
 type BulkFinalizeSummary = {
+  finalizedPlanillaIds: number[]
   finalizedSheets: number
   resolved: number
   retired: number
@@ -147,9 +405,14 @@ type BulkFinalizeSummary = {
   failedGroups: string[]
 }
 
+const PLANILLAS_LIST_STALE_TIME = 5 * 60_000
+const PLANILLA_DETAIL_STALE_TIME = 2 * 60_000
+const PLANILLA_DETAIL_GC_TIME = 15 * 60_000
+
 const PlanillasPage = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const isTeacherView = user?.role === 'teacher'
   const canImport = user?.role === 'admin' || user?.role === 'coordinator'
   const canManageSpecializations = canImport
   const canFinalize = canImport
@@ -159,7 +422,10 @@ const PlanillasPage = () => {
   const [selectedGradeLevel, setSelectedGradeLevel] = useState<number | ''>('')
   const [selectedPlanillaId, setSelectedPlanillaId] = useState<number | null>(null)
   const [groupSearch, setGroupSearch] = useState('')
+  const deferredGroupSearch = useDeferredValue(groupSearch.trim())
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [importInputKey, setImportInputKey] = useState(0)
+  const [dismissedImportPlanillaIds, setDismissedImportPlanillaIds] = useState<number[]>([])
   const [replaceExisting, setReplaceExisting] = useState(true)
   const [draftTitle, setDraftTitle] = useState('')
   const [draftMetadata, setDraftMetadata] = useState<MetadataDraft>({
@@ -177,6 +443,9 @@ const PlanillasPage = () => {
   const [finalizeResult, setFinalizeResult] = useState<BulkFinalizeSummary | null>(null)
   const [importSummary, setImportSummary] = useState<string | null>(null)
   const [currentDocumentRowId, setCurrentDocumentRowId] = useState<string | null>(null)
+  const [visibleProfessorPeriods, setVisibleProfessorPeriods] = useState<number[]>(
+    PROFESSOR_PERIODS.map(({ period }) => period),
+  )
 
   const {
     data: schoolYears,
@@ -199,45 +468,94 @@ const PlanillasPage = () => {
   const {
     data: planillasResult,
     isLoading: isLoadingPlanillas,
+    isFetching: isFetchingPlanillas,
     isError: isPlanillasError,
     error: planillasError,
   } = useQuery({
-    queryKey: ['planillas', selectedSchoolYearId, groupSearch, user?.nationalId, user?.role],
+    queryKey: ['planillas', selectedSchoolYearId, deferredGroupSearch, user?.nationalId, user?.role],
     queryFn: () =>
       planillasApi.list({
         schoolYearId: selectedSchoolYearId === '' ? undefined : selectedSchoolYearId,
-        groupCode: groupSearch.trim() || undefined,
+        groupCode: deferredGroupSearch || undefined,
         page: 1,
         pageSize: 100,
+      }),
+    enabled: Boolean(selectedSchoolYearId),
+    staleTime: PLANILLAS_LIST_STALE_TIME,
+    gcTime: PLANILLA_DETAIL_GC_TIME,
+    placeholderData: keepPreviousData,
+  })
+
+  const {
+    data: terms = [],
+    isError: isTermsError,
+    error: termsError,
+  } = useQuery({
+    queryKey: ['terms', selectedSchoolYearId],
+    queryFn: () =>
+      termsApi.list({
+        schoolYearId: selectedSchoolYearId === '' ? undefined : selectedSchoolYearId,
       }),
     enabled: Boolean(selectedSchoolYearId),
   })
 
   const planillas = planillasResult?.data ?? []
+  const dismissedImportPlanillaIdSet = useMemo(
+    () => new Set(dismissedImportPlanillaIds),
+    [dismissedImportPlanillaIds],
+  )
+  const importWorkflowPlanillas = useMemo(
+    () =>
+      isTeacherView
+        ? planillas
+        : planillas.filter(
+            (planilla) => !dismissedImportPlanillaIdSet.has(planilla.planillaSheetId),
+          ),
+    [dismissedImportPlanillaIdSet, isTeacherView, planillas],
+  )
+  const pendingImportPlanillas = useMemo(
+    () =>
+      isTeacherView
+        ? planillas
+        : importWorkflowPlanillas.filter((planilla) => planilla.summary.pending > 0),
+    [importWorkflowPlanillas, isTeacherView, planillas],
+  )
+  const readyImportPlanillas = useMemo(
+    () =>
+      isTeacherView
+        ? []
+        : importWorkflowPlanillas.filter((planilla) => planilla.summary.pending === 0),
+    [importWorkflowPlanillas, isTeacherView],
+  )
+
+  const resetImportSelection = () => {
+    setImportFile(null)
+    setImportInputKey((current) => current + 1)
+  }
 
   const gradeOptions = useMemo(
     () =>
-      Array.from(new Set(planillas.map((planilla) => planilla.gradeLevel)))
+      Array.from(new Set(pendingImportPlanillas.map((planilla) => planilla.gradeLevel)))
         .sort((left, right) => left - right),
-    [planillas],
+    [pendingImportPlanillas],
   )
 
   const planillasByGrade = useMemo(() => {
-    return planillas.reduce<Record<number, PlanillaSheet[]>>((accumulator, planilla) => {
+    return pendingImportPlanillas.reduce<Record<number, PlanillaSheetSummary[]>>((accumulator, planilla) => {
       if (!accumulator[planilla.gradeLevel]) {
         accumulator[planilla.gradeLevel] = []
       }
       accumulator[planilla.gradeLevel].push(planilla)
       return accumulator
     }, {})
-  }, [planillas])
+  }, [pendingImportPlanillas])
 
   const visiblePlanillas = useMemo(() => {
     if (selectedGradeLevel === '') {
-      return planillas
+      return pendingImportPlanillas
     }
-    return planillas.filter((planilla) => planilla.gradeLevel === selectedGradeLevel)
-  }, [planillas, selectedGradeLevel])
+    return pendingImportPlanillas.filter((planilla) => planilla.gradeLevel === selectedGradeLevel)
+  }, [pendingImportPlanillas, selectedGradeLevel])
 
   useEffect(() => {
     if (gradeOptions.length === 0) {
@@ -273,6 +591,8 @@ const PlanillasPage = () => {
     queryKey: ['planilla', selectedPlanillaId],
     queryFn: () => planillasApi.getById(selectedPlanillaId as number),
     enabled: selectedPlanillaId !== null,
+    staleTime: PLANILLA_DETAIL_STALE_TIME,
+    gcTime: PLANILLA_DETAIL_GC_TIME,
   })
 
   const {
@@ -304,6 +624,65 @@ const PlanillasPage = () => {
       selectedPlanilla.rows.find((row) => !(row.nationalId ?? '').trim())?.rowId ?? null,
     )
   }, [selectedPlanilla])
+
+  useEffect(() => {
+    const candidatePlanillaId = selectedPlanillaId ?? visiblePlanillas[0]?.planillaSheetId ?? null
+    if (candidatePlanillaId === null) {
+      return
+    }
+
+    void queryClient.prefetchQuery({
+      queryKey: ['planilla', candidatePlanillaId],
+      queryFn: () => planillasApi.getById(candidatePlanillaId),
+      staleTime: PLANILLA_DETAIL_STALE_TIME,
+      gcTime: PLANILLA_DETAIL_GC_TIME,
+    })
+  }, [queryClient, selectedPlanillaId, visiblePlanillas])
+
+  useEffect(() => {
+    if (isTeacherView) {
+      return
+    }
+
+    const completedPlanillaIds = planillas
+      .filter(
+        (planilla) =>
+          planilla.summary.pending === 0 && planilla.planillaSheetId !== selectedPlanillaId,
+      )
+      .map((planilla) => planilla.planillaSheetId)
+
+    completedPlanillaIds.forEach((planillaSheetId) => {
+      queryClient.removeQueries({
+        queryKey: ['planilla', planillaSheetId],
+        exact: true,
+      })
+    })
+  }, [isTeacherView, planillas, queryClient, selectedPlanillaId])
+
+  useEffect(() => {
+    if (isTeacherView) {
+      return
+    }
+
+    if (planillas.length === 0 || pendingImportPlanillas.length > 0) {
+      return
+    }
+
+    resetImportSelection()
+    setSelectedPlanillaId(null)
+    setDraftTitle('')
+    setDraftMetadata({
+      subjectName: '',
+      teacherName: '',
+      periodLabel: '',
+      specializationName: '',
+      specializationAreaId: null,
+    })
+    setDraftRows([])
+    setNewSpecializationName('')
+    setIsDirty(false)
+    setCurrentDocumentRowId(null)
+  }, [isTeacherView, pendingImportPlanillas.length, planillas.length])
 
   const specializationAreas = useMemo(() => {
     const merged = [...createdSpecializationAreas, ...((subjectAreasResult?.data ?? []).filter((area) => area.isSpecialization))]
@@ -418,7 +797,11 @@ const PlanillasPage = () => {
           ? `Grupos sin coincidencia: ${result.unmatchedGroups.join(', ')}`
           : 'Importación completada.',
       )
-      setImportFile(null)
+      resetImportSelection()
+      setDismissedImportPlanillaIds((current) => {
+        const importedSheetIds = new Set(result.sheets.map((sheet) => sheet.planillaSheetId))
+        return current.filter((planillaSheetId) => !importedSheetIds.has(planillaSheetId))
+      })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['planillas'] }),
         queryClient.invalidateQueries({ queryKey: ['class-groups'] }),
@@ -481,6 +864,7 @@ const PlanillasPage = () => {
       }
 
       const results: FinalizePlanillaResult[] = []
+      const finalizedPlanillaIds: number[] = []
       const failedGroups: string[] = []
 
       for (const planilla of finalizeEligiblePlanillas) {
@@ -489,6 +873,7 @@ const PlanillasPage = () => {
             allowPartial: true,
           })
           results.push(result)
+          finalizedPlanillaIds.push(planilla.planillaSheetId)
         } catch (error) {
           failedGroups.push(planilla.groupCode)
           console.error('Failed to finalize planilla', planilla.planillaSheetId, error)
@@ -504,6 +889,7 @@ const PlanillasPage = () => {
       }
 
       return {
+        finalizedPlanillaIds,
         finalizedSheets: results.length,
         resolved: results.reduce((total, result) => total + result.resolved, 0),
         retired: results.reduce((total, result) => total + result.retired, 0),
@@ -513,6 +899,15 @@ const PlanillasPage = () => {
     },
     onSuccess: async (result) => {
       setFinalizeResult(result)
+      setDismissedImportPlanillaIds((current) =>
+        Array.from(new Set([...current, ...result.finalizedPlanillaIds])),
+      )
+      result.finalizedPlanillaIds.forEach((planillaSheetId) => {
+        queryClient.removeQueries({
+          queryKey: ['planilla', planillaSheetId],
+          exact: true,
+        })
+      })
       setPageMessage(
         result.failedGroups.length > 0
           ? `Importación aplicada en ${result.finalizedSheets} planillas. Fallaron: ${result.failedGroups.join(', ')}.`
@@ -595,27 +990,112 @@ const PlanillasPage = () => {
     setIsDirty(true)
   }
 
-  const loading = isLoadingYears || isLoadingPlanillas || (selectedPlanillaId !== null && isLoadingSelectedPlanilla)
+  const handlePlanillaCellChange = (rowId: string, key: string, value: string) => {
+    const nextValue = PROFESSOR_GRADE_CELL_KEYS.has(key)
+      ? normalizeLetterMark(value)
+      : value
+    setDraftRows((currentRows) =>
+      currentRows.map((row) =>
+        row.rowId === rowId
+          ? {
+              ...row,
+              cells: {
+                ...row.cells,
+                [key]: nextValue,
+              },
+            }
+          : row,
+      ),
+    )
+    setIsDirty(true)
+  }
+
+  const handleProfessorPeriodToggle = (period: number) => {
+    setVisibleProfessorPeriods((current) => {
+      if (current.includes(period)) {
+        return current.length > 1 ? current.filter((value) => value !== period) : current
+      }
+      return [...current, period].sort((left, right) => left - right)
+    })
+  }
+
+  const showAllProfessorPeriods = () => {
+    setVisibleProfessorPeriods(PROFESSOR_PERIODS.map(({ period }) => period))
+  }
+
+  const loading = (isLoadingYears && !schoolYears) || (isLoadingPlanillas && !planillasResult)
+  const detailLoading = selectedPlanillaId !== null && isLoadingSelectedPlanilla && !selectedPlanilla
   const activePlanilla = selectedPlanilla ?? null
   const specializationEnabled = Boolean(
     activePlanilla && isSpecializationGrade(activePlanilla.gradeLevel),
   )
-  const planillasForFinalize = useMemo(() => {
-    return planillas.map((planilla) => {
+  const displayRows = useMemo(
+    () => [...draftRows].sort((left, right) => left.order - right.order),
+    [draftRows],
+  )
+  const configuredProfessorTerms = useMemo(
+    () =>
+      terms
+        .filter((term) => /^P[1-4]$/.test(term.name))
+        .sort((left, right) => left.sortOrder - right.sortOrder),
+    [terms],
+  )
+  const enableProfessorFallbackEditing = isTermsError || configuredProfessorTerms.length === 0
+  const todayKey = toDateKey(new Date())
+  const professorPeriodStates = useMemo(() => {
+    const termsByName = new Map(configuredProfessorTerms.map((term) => [term.name, term]))
+    return Object.fromEntries(
+      PROFESSOR_PERIODS.map(({ period }) => [
+        period,
+        buildProfessorPeriodState(
+          period,
+          termsByName.get(`P${period}`),
+          todayKey,
+          enableProfessorFallbackEditing,
+        ),
+      ]),
+    ) as Record<number, ProfessorPeriodState>
+  }, [configuredProfessorTerms, enableProfessorFallbackEditing, todayKey])
+  const professorPeriodsToRender = useMemo(
+    () =>
+      PROFESSOR_PERIODS.filter(({ period }) => visibleProfessorPeriods.includes(period)),
+    [visibleProfessorPeriods],
+  )
+  const professorVisibleColumns = useMemo<ProfessorVisibleColumn[]>(
+    () =>
+      professorPeriodsToRender.flatMap(({ period, columns }) =>
+        columns.map((column) => ({
+          ...column,
+          period,
+          editable: professorPeriodStates[period].editable,
+        })),
+      ),
+    [professorPeriodStates, professorPeriodsToRender],
+  )
+  const visibleEditableProfessorColumnKeys = useMemo(
+    () =>
+      professorVisibleColumns
+        .filter((column) => column.editable)
+        .map((column) => column.key),
+    [professorVisibleColumns],
+  )
+  const professorTableMinWidth = 320 + professorVisibleColumns.length * 92
+  const planillasForFinalize = useMemo<PlanillaSheetSummary[]>(() => {
+    return importWorkflowPlanillas.map((planilla) => {
       if (planilla.planillaSheetId !== selectedPlanillaId || !activePlanilla) {
         return planilla
       }
 
       return {
         ...planilla,
-        rows: draftRows,
+        summary: buildSummary(draftRows),
       }
     })
-  }, [activePlanilla, draftRows, planillas, selectedPlanillaId])
+  }, [activePlanilla, draftRows, importWorkflowPlanillas, selectedPlanillaId])
   const finalizeEligiblePlanillas = useMemo(
     () =>
       [...planillasForFinalize]
-        .filter((planilla) => buildSummary(planilla.rows).pending === 0)
+        .filter((planilla) => planilla.summary.pending === 0)
         .sort((left, right) => {
           if (left.gradeLevel !== right.gradeLevel) {
             return left.gradeLevel - right.gradeLevel
@@ -624,13 +1104,71 @@ const PlanillasPage = () => {
         }),
     [planillasForFinalize],
   )
+  const adminImportWorkflowCompleted =
+    !isTeacherView &&
+    importWorkflowPlanillas.length > 0 &&
+    pendingImportPlanillas.length === 0 &&
+    readyImportPlanillas.length > 0
+
+  const fillVisibleProfessorPeriodsWithRandomGrades = () => {
+    if (visibleEditableProfessorColumnKeys.length === 0) {
+      return
+    }
+
+    setDraftRows((current) =>
+      current.map((row) => ({
+        ...row,
+        cells: {
+          ...row.cells,
+          ...Object.fromEntries(
+            visibleEditableProfessorColumnKeys.map((key) => [
+              key,
+              RANDOM_LETTER_MARKS[Math.floor(Math.random() * RANDOM_LETTER_MARKS.length)],
+            ]),
+          ),
+        },
+      })),
+    )
+    setIsDirty(true)
+  }
+
+  // Testing-only helper to populate the current imported sheet with unique fake IDs.
+  const fillImportRowsWithRandomNationalIds = () => {
+    if (draftRows.length === 0) {
+      return
+    }
+
+    const usedNationalIds = new Set<string>()
+    const nextRows: PlanillaRow[] = draftRows.map((row) => {
+      let nationalId = ''
+
+      do {
+        nationalId = String(
+          RANDOM_NATIONAL_ID_MIN + Math.floor(Math.random() * RANDOM_NATIONAL_ID_RANGE),
+        )
+      } while (usedNationalIds.has(nationalId))
+
+      usedNationalIds.add(nationalId)
+
+      return {
+        ...row,
+        nationalId,
+        status: row.retired ? 'retired' : 'resolved',
+      }
+    })
+
+    setDraftRows(nextRows)
+    setIsDirty(true)
+  }
 
   return (
     <Stack spacing={3}>
       <Stack spacing={1}>
         <Typography variant="h4">Planillas</Typography>
         <Typography variant="body1" color="text.secondary">
-          Importa el formato institucional desde Numbers, completa documentos pendientes y conserva una copia editable en línea.
+          {isTeacherView
+            ? 'Consulta tu grupo, visualiza los estudiantes y diligencia las valoraciones por periodo.'
+            : 'Importa el formato institucional desde Excel, completa documentos pendientes y conserva una copia editable en línea.'}
         </Typography>
       </Stack>
 
@@ -659,6 +1197,13 @@ const PlanillasPage = () => {
           {selectedPlanillaError instanceof Error ? selectedPlanillaError.message : 'No se pudo cargar la planilla seleccionada.'}
         </Alert>
       ) : null}
+      {isTeacherView && isTermsError ? (
+        <Alert severity="warning">
+          {termsError instanceof Error
+            ? `${termsError.message} Se habilitan temporalmente todos los periodos.`
+            : 'No se pudo cargar el calendario de periodos. Se habilitan temporalmente todos los periodos.'}
+        </Alert>
+      ) : null}
 
       {canImport ? (
         <Paper sx={{ p: 2.5 }}>
@@ -683,6 +1228,7 @@ const PlanillasPage = () => {
               <Button variant="outlined" component="label">
                 {importFile ? importFile.name : 'Seleccionar archivo Excel'}
                 <input
+                  key={importInputKey}
                   hidden
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -739,6 +1285,11 @@ const PlanillasPage = () => {
               onChange={(event) => setGroupSearch(normalizeDigits(event.target.value))}
               sx={{ maxWidth: 160 }}
             />
+            {isFetchingPlanillas && !loading ? (
+              <Typography variant="caption" color="text.secondary">
+                Actualizando planillas...
+              </Typography>
+            ) : null}
           </Stack>
 
           {loading ? (
@@ -747,6 +1298,44 @@ const PlanillasPage = () => {
             </Stack>
           ) : planillas.length === 0 ? (
             <Alert severity="info">No hay planillas para los filtros seleccionados.</Alert>
+          ) : adminImportWorkflowCompleted ? (
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={2}
+                justifyContent="space-between"
+                alignItems={{ xs: 'stretch', md: 'center' }}
+              >
+                <Stack spacing={0.5}>
+                  <Typography variant="h6">Importación lista para cerrar</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Todas las planillas importadas ya tienen pendientes 0. Se limpió el detalle en memoria y solo queda finalizar la importación.
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip
+                    color="success"
+                    label={`Listas ${finalizeEligiblePlanillas.length}`}
+                  />
+                  {canFinalize ? (
+                    <Button
+                      variant="outlined"
+                      color="secondary"
+                      onClick={() => finalizeMutation.mutate()}
+                      disabled={
+                        finalizeMutation.isPending || finalizeEligiblePlanillas.length === 0
+                      }
+                    >
+                      {finalizeMutation.isPending
+                        ? 'Aplicando...'
+                        : finalizeEligiblePlanillas.length > 1
+                          ? `Finalizar listas (${finalizeEligiblePlanillas.length})`
+                          : 'Finalizar importación'}
+                    </Button>
+                  ) : null}
+                </Stack>
+              </Stack>
+            </Paper>
           ) : (
             <Stack spacing={2}>
               <Box
@@ -779,11 +1368,13 @@ const PlanillasPage = () => {
                         />
                       </Stack>
                       <Typography variant="body2" color="text.secondary">
-                        Selecciona el grupo para registrar documentos.
+                        {isTeacherView
+                          ? 'Selecciona el grupo para diligenciar valoraciones.'
+                          : 'Selecciona el grupo para registrar documentos.'}
                       </Typography>
                       <Stack direction="row" flexWrap="wrap" gap={1}>
                         {(planillasByGrade[gradeLevel] ?? []).map((planilla) => {
-                          const cardSummary = buildSummary(planilla.rows)
+                          const cardSummary = planilla.summary
                           const isSelected = planilla.planillaSheetId === selectedPlanillaId
                           return (
                             <Chip
@@ -791,10 +1382,30 @@ const PlanillasPage = () => {
                               clickable
                               color={isSelected ? 'primary' : 'default'}
                               variant={isSelected ? 'filled' : 'outlined'}
-                              label={`${planilla.groupCode} · Pend ${cardSummary.pending}`}
+                              label={
+                                isTeacherView
+                                  ? `${planilla.groupCode} · ${planilla.summary.total} est.`
+                                  : `${planilla.groupCode} · Pend ${cardSummary.pending}`
+                              }
                               onClick={() => {
                                 setSelectedGradeLevel(gradeLevel)
                                 setSelectedPlanillaId(planilla.planillaSheetId)
+                              }}
+                              onMouseEnter={() => {
+                                void queryClient.prefetchQuery({
+                                  queryKey: ['planilla', planilla.planillaSheetId],
+                                  queryFn: () => planillasApi.getById(planilla.planillaSheetId),
+                                  staleTime: PLANILLA_DETAIL_STALE_TIME,
+                                  gcTime: PLANILLA_DETAIL_GC_TIME,
+                                })
+                              }}
+                              onFocus={() => {
+                                void queryClient.prefetchQuery({
+                                  queryKey: ['planilla', planilla.planillaSheetId],
+                                  queryFn: () => planillasApi.getById(planilla.planillaSheetId),
+                                  staleTime: PLANILLA_DETAIL_STALE_TIME,
+                                  gcTime: PLANILLA_DETAIL_GC_TIME,
+                                })
                               }}
                             />
                           )
@@ -804,6 +1415,17 @@ const PlanillasPage = () => {
                   </Paper>
                 ))}
               </Box>
+
+              {detailLoading ? (
+                <Paper variant="outlined" sx={{ p: 3 }}>
+                  <Stack alignItems="center" spacing={1.5}>
+                    <CircularProgress size={28} />
+                    <Typography variant="body2" color="text.secondary">
+                      Cargando detalle de la planilla...
+                    </Typography>
+                  </Stack>
+                </Paper>
+              ) : null}
 
               {activePlanilla && canEditRoster ? (
                 <Paper variant="outlined" sx={{ p: 2 }}>
@@ -995,10 +1617,23 @@ const PlanillasPage = () => {
                       justifyContent="space-between"
                       alignItems={{ xs: 'stretch', md: 'center' }}
                     >
-                      <Typography variant="body2" color="text.secondary">
-                        Los estudiantes con RET se crearán o actualizarán como inactivos al finalizar la importación.
-                      </Typography>
+                      <Stack spacing={0.25}>
+                        <Typography variant="body2" color="text.secondary">
+                          Los estudiantes con RET se crearán o actualizarán como inactivos al finalizar la importación.
+                        </Typography>
+                        <Typography variant="caption" color="warning.main">
+                          Test feature: genera documentos aleatorios únicos para toda la importación actual.
+                        </Typography>
+                      </Stack>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button
+                          variant="outlined"
+                          color="warning"
+                          onClick={fillImportRowsWithRandomNationalIds}
+                          disabled={!canEditRoster || saveMutation.isPending || draftRows.length === 0}
+                        >
+                          IDs aleatorios
+                        </Button>
                         <Button
                           variant="contained"
                           onClick={() => saveMutation.mutate()}
@@ -1026,13 +1661,208 @@ const PlanillasPage = () => {
                     </Stack>
                   </Stack>
                 </Paper>
+              ) : activePlanilla && isTeacherView ? (
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Stack spacing={2}>
+                    <Stack
+                      direction={{ xs: 'column', md: 'row' }}
+                      justifyContent="space-between"
+                      spacing={2}
+                    >
+                      <Stack spacing={0.5}>
+                        <Typography variant="h6">
+                          {String(activePlanilla.metadata.subjectName ?? '').trim() || activePlanilla.title}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {`Grado ${activePlanilla.gradeLevel} · Grupo ${activePlanilla.groupCode}`}
+                          {String(activePlanilla.metadata.teacherName ?? '').trim()
+                            ? ` · Profesor ${String(activePlanilla.metadata.teacherName)}`
+                            : ''}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip label={`${displayRows.length} estudiantes`} />
+                        <Chip
+                          color={isDirty ? 'warning' : 'success'}
+                          label={isDirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}
+                        />
+                      </Stack>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      {PROFESSOR_PERIODS.map(({ period }) => {
+                        const state = professorPeriodStates[period]
+                        return (
+                          <Chip
+                            key={period}
+                            color={state.color}
+                            label={`Periodo ${period} · ${state.label}`}
+                            variant={state.editable ? 'filled' : 'outlined'}
+                          />
+                        )
+                      })}
+                    </Stack>
+
+                    <Stack spacing={1}>
+                      <Typography variant="body2" color="text.secondary">
+                        Periodos visibles
+                      </Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Chip
+                          clickable
+                          label="Todos"
+                          color={
+                            visibleProfessorPeriods.length === PROFESSOR_PERIODS.length
+                              ? 'primary'
+                              : 'default'
+                          }
+                          variant={
+                            visibleProfessorPeriods.length === PROFESSOR_PERIODS.length
+                              ? 'filled'
+                              : 'outlined'
+                          }
+                          onClick={showAllProfessorPeriods}
+                        />
+                        {PROFESSOR_PERIODS.map(({ period }) => {
+                          const isVisible = visibleProfessorPeriods.includes(period)
+                          return (
+                            <Chip
+                              key={`toggle-period-${period}`}
+                              clickable
+                              label={`P${period}`}
+                              color={isVisible ? 'primary' : 'default'}
+                              variant={isVisible ? 'filled' : 'outlined'}
+                              onClick={() => handleProfessorPeriodToggle(period)}
+                              disabled={isVisible && visibleProfessorPeriods.length === 1}
+                            />
+                          )
+                        })}
+                      </Stack>
+                    </Stack>
+
+                    <Typography variant="body2" color="text.secondary">
+                      {enableProfessorFallbackEditing
+                        ? 'Todavía no hay fechas de periodos configuradas para este año escolar. Por ahora todas las casillas están habilitadas.'
+                        : 'Solo el periodo cuya fecha esté activa queda habilitado para edición; los demás se muestran en modo lectura.'}
+                    </Typography>
+
+                    <TableContainer
+                      component={Paper}
+                      variant="outlined"
+                      sx={{
+                        maxWidth: '100%',
+                        overflowX: 'auto',
+                        '--planilla-grade-cell-bg': (theme) => theme.palette.background.paper,
+                        '--planilla-grade-cell-bg-disabled': (theme) => theme.palette.action.hover,
+                        '--planilla-grade-cell-border': (theme) => theme.palette.divider,
+                        '--planilla-grade-cell-text': (theme) => theme.palette.text.primary,
+                        '--planilla-grade-cell-color-scheme': (theme) => theme.palette.mode,
+                      }}
+                    >
+                      <Table
+                        size="small"
+                        stickyHeader
+                        sx={{
+                          minWidth: professorTableMinWidth,
+                          '& .MuiTableCell-head': {
+                            whiteSpace: 'nowrap',
+                          },
+                        }}
+                      >
+                        <TableHead>
+                          <TableRow>
+                            <TableCell rowSpan={2} sx={{ minWidth: 280 }}>
+                              Estudiante
+                            </TableCell>
+                            {professorPeriodsToRender.map(({ period }) => {
+                              const state = professorPeriodStates[period]
+                              return (
+                                <TableCell
+                                  key={period}
+                                  align="center"
+                                  colSpan={3}
+                                  sx={{
+                                    backgroundColor: state.editable
+                                      ? 'rgba(46, 125, 50, 0.08)'
+                                      : undefined,
+                                  }}
+                                >
+                                  <Stack spacing={0.25} alignItems="center">
+                                    <Typography variant="subtitle2">{`Periodo ${period}`}</Typography>
+                                    <Typography variant="caption" color="text.secondary">
+                                      {state.helperText}
+                                    </Typography>
+                                  </Stack>
+                                </TableCell>
+                              )
+                            })}
+                          </TableRow>
+                          <TableRow>
+                            {professorPeriodsToRender.flatMap(({ period, columns }) =>
+                              columns.map((column) => (
+                                <TableCell key={`${period}-${column.key}`} align="center">
+                                  {column.shortLabel}
+                                </TableCell>
+                              )),
+                            )}
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {displayRows.map((row) => (
+                            <ProfessorGridRow
+                              key={row.rowId}
+                              row={row}
+                              columns={professorVisibleColumns}
+                              onCellChange={handlePlanillaCellChange}
+                            />
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    <Stack
+                      direction={{ xs: 'column', md: 'row' }}
+                      spacing={1.5}
+                      justifyContent="space-between"
+                      alignItems={{ xs: 'stretch', md: 'center' }}
+                    >
+                      <Stack spacing={0.25}>
+                        <Typography variant="body2" color="text.secondary">
+                          Guarda la planilla para conservar los avances por estudiante y por periodo.
+                        </Typography>
+                        <Typography variant="caption" color="warning.main">
+                          Test feature: llena con notas aleatorias solo los periodos visibles.
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        <Button
+                          variant="outlined"
+                          color="warning"
+                          onClick={fillVisibleProfessorPeriodsWithRandomGrades}
+                          disabled={
+                            saveMutation.isPending || visibleEditableProfessorColumnKeys.length === 0
+                          }
+                        >
+                          Notas aleatorias
+                        </Button>
+                        <Button
+                          variant="contained"
+                          onClick={() => saveMutation.mutate()}
+                          disabled={!isDirty || saveMutation.isPending}
+                        >
+                          {saveMutation.isPending ? 'Guardando...' : 'Guardar valoraciones'}
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Stack>
+                </Paper>
               ) : null}
             </Stack>
           )}
         </Stack>
       </Paper>
 
-      {!activePlanilla && !loading ? (
+      {!activePlanilla && !loading && !detailLoading && !adminImportWorkflowCompleted ? (
         <Alert severity="info">Selecciona una planilla para revisar el detalle.</Alert>
       ) : null}
     </Stack>

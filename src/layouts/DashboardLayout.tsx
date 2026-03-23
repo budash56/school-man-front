@@ -85,6 +85,12 @@ export const DashboardLayout = () => {
       // Future version: enable timetable generator when ready.
     ]
 
+    if (user?.role === 'registrar') {
+      return items.filter((item) =>
+        ['/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
+      )
+    }
+
     if (user?.role === 'teacher') {
       return items.filter(
         (item) =>
