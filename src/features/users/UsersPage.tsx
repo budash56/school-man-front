@@ -30,12 +30,20 @@ import { useAuth } from '../auth/AuthContext'
 import { useLocation } from 'react-router-dom'
 import { subjectsApi } from '../../api/subjectsApi'
 import { coursesApi } from '../../api/coursesApi'
+import { type Role } from '../../api/authApi'
 
 const roles = [
   { value: 'teacher', label: 'Profesor' },
   { value: 'coordinator', label: 'Coordinador' },
   { value: 'registrar', label: 'Registro' },
 ] as const
+
+const allRoleOptions: Array<{ value: Role; label: string }> = [
+  { value: 'admin', label: 'Administrador' },
+  { value: 'coordinator', label: 'Coordinador' },
+  { value: 'registrar', label: 'Registro' },
+  { value: 'teacher', label: 'Profesor' },
+]
 
 type RoleValue = (typeof roles)[number]['value']
 
@@ -81,10 +89,18 @@ export const UsersPage = () => {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedAssignAreaId, setSelectedAssignAreaId] = useState<number | ''>('')
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | ''>('')
+  const [draftRole, setDraftRole] = useState<Role>('teacher')
   const emailIsValid = Boolean(draftUser.email?.trim())
   const tempPassword = useMemo(
     () => buildTempPassword(draftUser.lastName, draftUser.nationalId),
     [draftUser.lastName, draftUser.nationalId],
+  )
+  const createRoles = useMemo(
+    () =>
+      user?.role === 'admin'
+        ? roles
+        : roles.filter((role) => role.value === 'teacher' || role.value === 'registrar'),
+    [user?.role],
   )
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -214,6 +230,17 @@ export const UsersPage = () => {
     },
   })
 
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ nationalId, role }: { nationalId: string; role: Role }) =>
+      usersApi.update(nationalId, { role }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['users'] }),
+        queryClient.invalidateQueries({ queryKey: ['user', selectedUserId] }),
+      ])
+    },
+  })
+
   const bulkImportMutation = useMutation({
     mutationFn: (file: File) => usersApi.bulkImport(file),
     onSuccess: (result) => {
@@ -271,6 +298,13 @@ export const UsersPage = () => {
     }
   }, [location.state])
 
+  useEffect(() => {
+    if (!selectedUser) {
+      return
+    }
+    setDraftRole(selectedUser.role)
+  }, [selectedUser])
+
   if (!user || (user.role !== 'admin' && user.role !== 'coordinator')) {
     return (
       <Alert severity="error">
@@ -280,7 +314,9 @@ export const UsersPage = () => {
   }
 
   const handleOpenCreate = () => {
-    setDraftUser({ ...emptyUser, role: selectedRole, password: '' })
+    const defaultRole =
+      createRoles.find((role) => role.value === selectedRole)?.value ?? createRoles[0]?.value ?? 'teacher'
+    setDraftUser({ ...emptyUser, role: defaultRole, password: '' })
     setSelectedAreas([])
     setSelectedCreateSubjectIds([])
     setAreaError('')
@@ -436,6 +472,52 @@ export const UsersPage = () => {
                 Rol: {selectedUser.role} · Contacto: {selectedUser.email ?? 'Sin correo'} ·{' '}
                 {selectedUser.phone ?? 'Sin teléfono'}
               </Typography>
+
+              {user.role === 'admin' ? (
+                <>
+                  <Divider />
+                  <Stack
+                    direction={{ xs: 'column', md: 'row' }}
+                    spacing={2}
+                    alignItems={{ xs: 'stretch', md: 'center' }}
+                  >
+                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                      <InputLabel id="change-role-label">Cambiar rol</InputLabel>
+                      <Select
+                        labelId="change-role-label"
+                        label="Cambiar rol"
+                        value={draftRole}
+                        onChange={(event) => setDraftRole(event.target.value as Role)}
+                      >
+                        {allRoleOptions.map((role) => (
+                          <MenuItem key={role.value} value={role.value}>
+                            {role.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        if (!selectedUserId || draftRole === selectedUser.role) {
+                          return
+                        }
+                        updateRoleMutation.mutate({ nationalId: selectedUserId, role: draftRole })
+                      }}
+                      disabled={draftRole === selectedUser.role || updateRoleMutation.isPending}
+                    >
+                      {updateRoleMutation.isPending ? 'Guardando rol...' : 'Guardar rol'}
+                    </Button>
+                  </Stack>
+                  {updateRoleMutation.isError ? (
+                    <Alert severity="error">
+                      {updateRoleMutation.error instanceof Error
+                        ? updateRoleMutation.error.message
+                        : 'No se pudo actualizar el rol.'}
+                    </Alert>
+                  ) : null}
+                </>
+              ) : null}
 
               {selectedUser.role === 'teacher' ? (
                 <>
@@ -773,7 +855,7 @@ export const UsersPage = () => {
                 setDraftUser((prev) => ({ ...prev, role: event.target.value as CreateUserPayload['role'] }))
               }
             >
-              {roles.map((role) => (
+              {createRoles.map((role) => (
                 <MenuItem key={role.value} value={role.value}>
                   {role.label}
                 </MenuItem>

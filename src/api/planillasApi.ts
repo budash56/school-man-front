@@ -23,7 +23,14 @@ export type PlanillaRow = {
   cells: Record<string, string>
 }
 
-export type PlanillaSheet = {
+export type PlanillaSummary = {
+  total: number
+  resolved: number
+  pending: number
+  retired: number
+}
+
+export type PlanillaSheetSummary = {
   planillaSheetId: number
   schoolYearId: number
   classGroupId: number | null
@@ -35,12 +42,16 @@ export type PlanillaSheet = {
   templateKey: string
   title: string
   metadata: Record<string, unknown>
-  columns: PlanillaColumn[]
-  rows: PlanillaRow[]
+  summary: PlanillaSummary
   isActive: boolean
   importedById: string | null
   importedAt: string | null
   updatedAt: string | null
+}
+
+export type PlanillaSheet = PlanillaSheetSummary & {
+  columns: PlanillaColumn[]
+  rows: PlanillaRow[]
 }
 
 export type PlanillasQuery = {
@@ -84,7 +95,7 @@ export type FinalizePlanillaResult = {
 
 export const planillasApi = {
   list(params: PlanillasQuery = {}) {
-    return apiClient.get<PaginatedResult<PlanillaSheet>>('/planillas', {
+    return apiClient.get<PaginatedResult<PlanillaSheetSummary>>('/planillas', {
       query: {
         schoolYearId: params.schoolYearId,
         gradeLevel: params.gradeLevel,

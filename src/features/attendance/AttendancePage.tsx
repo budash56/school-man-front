@@ -27,6 +27,7 @@ import { attendanceApi, type AttendanceStatus } from '../../api/attendanceApi'
 import { coursesApi } from '../../api/coursesApi'
 import { useAuth } from '../auth/AuthContext'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
+import RegistrarAttendanceView from './RegistrarAttendanceView'
 import {
   addDays,
   buildCalendarMonth,
@@ -50,6 +51,11 @@ const formatFullName = (firstName: string | null, lastName: string | null) =>
 
 export const AttendancePage = () => {
   const { user } = useAuth()
+
+  if (user?.role === 'registrar') {
+    return <RegistrarAttendanceView />
+  }
+
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const queryClient = useQueryClient()

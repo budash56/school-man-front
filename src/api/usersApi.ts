@@ -46,6 +46,17 @@ export type BulkImportUsersResult = {
   credentials: BulkImportCredential[]
 }
 
+export type UpdateUserPayload = Partial<{
+  nationalId: string
+  username: string
+  role: Role
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  isActive: boolean
+}>
+
 export const usersApi = {
   list(params: UsersQuery = {}) {
     return apiClient.get<PaginatedResult<User>>('/users', {
@@ -63,6 +74,9 @@ export const usersApi = {
   },
   create(payload: CreateUserPayload) {
     return apiClient.post<AuthResponse>('/auth/signup', payload)
+  },
+  update(nationalId: string, payload: UpdateUserPayload) {
+    return apiClient.patch<User>(`/users/${nationalId}`, payload)
   },
   remove(nationalId: string) {
     return apiClient.del<{ deleted: true }>(`/users/${nationalId}`)
