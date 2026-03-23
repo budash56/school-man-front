@@ -23,6 +23,15 @@ export type DisciplinaryRecordsQuery = {
   pageSize?: number
 }
 
+export type CreateDisciplinaryRecordPayload = {
+  studentId: number
+  recordedBy: string
+  dateHappened: string
+  category: DisciplinaryCategory
+  description?: string
+  expiresAt?: string
+}
+
 export const disciplinaryRecordsApi = {
   list(params: DisciplinaryRecordsQuery) {
     return apiClient.get<PaginatedResult<DisciplinaryRecord>>('/disciplinary-records', {
@@ -35,5 +44,8 @@ export const disciplinaryRecordsApi = {
         pageSize: params.pageSize,
       },
     })
+  },
+  create(payload: CreateDisciplinaryRecordPayload) {
+    return apiClient.post<DisciplinaryRecord>('/disciplinary-records', payload)
   },
 }

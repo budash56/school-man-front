@@ -47,6 +47,7 @@ export type PlanillaSheetSummary = {
   importedById: string | null
   importedAt: string | null
   updatedAt: string | null
+  importClosedAt: string | null
 }
 
 export type PlanillaSheet = PlanillaSheetSummary & {

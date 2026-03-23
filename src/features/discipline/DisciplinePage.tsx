@@ -5,20 +5,40 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
+  MenuItem,
   Paper,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
 import { useClassGroupsQuery } from '../classGroups/useClassGroupsQuery'
 import { useStudentsByClassGroup } from '../schoolYears/useStudentsByClassGroup'
 import { useStudentDiscipline } from '../students/useStudentDiscipline'
 import { coursesApi } from '../../api/coursesApi'
 import { useAuth } from '../auth/AuthContext'
+import {
+  disciplinaryRecordsApi,
+  type DisciplinaryCategory,
+} from '../../api/disciplinaryRecordsApi'
+
+const disciplinaryCategoryOptions: Array<{
+  value: DisciplinaryCategory
+  label: string
+}> = [
+  { value: 'green', label: 'Green' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'red', label: 'Red' },
+  { value: 'last_notice', label: 'Last notice' },
+]
 
 const getGroupLabel = (
   group?: { code?: string; gradeLevel?: number; section?: string },
@@ -38,9 +58,22 @@ const getGroupLabel = (
 
 export const DisciplinePage = () => {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState('')
   const [selectedClassGroupId, setSelectedClassGroupId] = useState('')
   const [currentStudentIndex, setCurrentStudentIndex] = useState(0)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [createDraft, setCreateDraft] = useState<{
+    category: DisciplinaryCategory
+    dateHappened: string
+    description: string
+    expiresAt: string
+  }>({
+    category: 'yellow',
+    dateHappened: new Date().toISOString().slice(0, 10),
+    description: '',
+    expiresAt: '',
+  })
 
   const {
     data: schoolYears,
@@ -157,6 +190,36 @@ export const DisciplinePage = () => {
   } = useStudentDiscipline(currentStudent?.studentId)
 
   const recordList = disciplineRecords?.data ?? []
+  const canCreateDiscipline = user?.role === 'admin'
+
+  const createRecordMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentStudent || !user?.nationalId) {
+        throw new Error('Selecciona un estudiante antes de crear un registro.')
+      }
+
+      return disciplinaryRecordsApi.create({
+        studentId: currentStudent.studentId,
+        recordedBy: user.nationalId,
+        dateHappened: createDraft.dateHappened,
+        category: createDraft.category,
+        description: createDraft.description.trim() || undefined,
+        expiresAt: createDraft.expiresAt || undefined,
+      })
+    },
+    onSuccess: async () => {
+      setIsCreateDialogOpen(false)
+      setCreateDraft({
+        category: 'yellow',
+        dateHappened: new Date().toISOString().slice(0, 10),
+        description: '',
+        expiresAt: '',
+      })
+      await queryClient.invalidateQueries({
+        queryKey: ['student-discipline', currentStudent?.studentId],
+      })
+    },
+  })
 
   const categoryCounts = useMemo(() => {
     return recordList.reduce(
@@ -347,6 +410,12 @@ export const DisciplinePage = () => {
                           {new Date(record.dateHappened).toLocaleDateString('es-CO')} · {record.category}
                         </Typography>
                         <Typography variant="body2">{record.description || 'Sin descripción'}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Creado:{' '}
+                          {record.createdAt
+                            ? new Date(record.createdAt).toLocaleString('es-CO')
+                            : 'Sin fecha de creación'}
+                        </Typography>
                       </Stack>
                     </Paper>
                   ))}
@@ -360,22 +429,22 @@ export const DisciplinePage = () => {
                 </Stack>
 
                 <Stack direction="row" spacing={2}>
-                  <Button
-                    variant="contained"
-                    onClick={() => {
-                      // TODO: open form to add new disciplinary record
-                    }}
-                  >
-                    Agregar
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={() => {
-                      // TODO: open form to edit disciplinary records
-                    }}
-                  >
-                    Editar
-                  </Button>
+                  {canCreateDiscipline ? (
+                    <Button
+                      variant="contained"
+                      onClick={() => {
+                        setCreateDraft({
+                          category: 'yellow',
+                          dateHappened: new Date().toISOString().slice(0, 10),
+                          description: '',
+                          expiresAt: '',
+                        })
+                        setIsCreateDialogOpen(true)
+                      }}
+                    >
+                      Agregar
+                    </Button>
+                  ) : null}
                   <Box flexGrow={1} />
                   <Button variant="text" onClick={() => setSelectedClassGroupId('')}>
                     Volver a grupos
@@ -386,6 +455,101 @@ export const DisciplinePage = () => {
           </>
         )}
       </Paper>
+
+      <Dialog
+        open={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Nuevo registro disciplinario</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <TextField
+            label="Estudiante"
+            value={
+              currentStudent
+                ? `${currentStudent.firstName} ${currentStudent.lastName}`.trim()
+                : ''
+            }
+            disabled
+          />
+          <TextField
+            select
+            label="Categoría"
+            value={createDraft.category}
+            onChange={(event) =>
+              setCreateDraft((current) => ({
+                ...current,
+                category: event.target.value as DisciplinaryCategory,
+              }))
+            }
+          >
+            {disciplinaryCategoryOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            type="date"
+            label="Fecha del incidente"
+            value={createDraft.dateHappened}
+            onChange={(event) =>
+              setCreateDraft((current) => ({
+                ...current,
+                dateHappened: event.target.value,
+              }))
+            }
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="Descripción"
+            value={createDraft.description}
+            onChange={(event) =>
+              setCreateDraft((current) => ({
+                ...current,
+                description: event.target.value,
+              }))
+            }
+            multiline
+            minRows={3}
+          />
+          <TextField
+            type="date"
+            label="Expira el"
+            value={createDraft.expiresAt}
+            onChange={(event) =>
+              setCreateDraft((current) => ({
+                ...current,
+                expiresAt: event.target.value,
+              }))
+            }
+            InputLabelProps={{ shrink: true }}
+          />
+
+          {createRecordMutation.isError ? (
+            <Alert severity="error">
+              {createRecordMutation.error instanceof Error
+                ? createRecordMutation.error.message
+                : 'No se pudo crear el registro disciplinario.'}
+            </Alert>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={() => createRecordMutation.mutate()}
+            disabled={
+              !currentStudent ||
+              !createDraft.dateHappened ||
+              createRecordMutation.isPending
+            }
+          >
+            {createRecordMutation.isPending ? 'Guardando...' : 'Guardar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

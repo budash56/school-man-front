@@ -31,9 +31,8 @@ export type CreateProfessorPayload = {
 
 export const professorsApi = {
   list(params: ProfessorsQuery = {}) {
-    return apiClient.get<PaginatedResult<Professor>>('/users', {
+    return apiClient.get<PaginatedResult<Professor>>('/users/teachers', {
       query: {
-        role: 'teacher',
         q: params.q,
         page: params.page,
         pageSize: params.pageSize,
@@ -41,7 +40,7 @@ export const professorsApi = {
     })
   },
   getById(nationalId: string) {
-    return apiClient.get<Professor>(`/users/${nationalId}`)
+    return apiClient.get<Professor>(`/users/teachers/${nationalId}`)
   },
   create(payload: CreateProfessorPayload) {
     return apiClient.post<AuthResponse>('/auth/signup', {

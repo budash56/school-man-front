@@ -198,6 +198,7 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 - **Teacher students view:** Teachers now navigate students by grade/group instead of a single flat list.
 - **WorkLoad:** Added subject-to-teacher-to-group assignment driven by curriculum, class groups, and teacher-subject eligibility.
 - **Planillas performance pass:** The list now renders from summary-only payloads, defers group-search refetches, and prefetches selected group details so heavy gradebook data loads only when needed.
+- **Calendar tab:** Added `/dashboard/calendar` for all roles. Admin/coordinator configure official school-year + P1-P4 dates and create community events; teachers see upcoming events on the dashboard and can publish class-group events; registrars get a read-only filtered calendar.
 - **Buildings/classrooms:** Added building flags, generated classroom names, and manual group-to-classroom assignment flows.
 - **Responsive phone pass:** dashboard shell, students, attendance, and workload now switch to more readable mobile layouts/cards on small screens.
 - **Password change enforcement:** Non-admin users flagged `mustChangePassword` are forced to `/change-password`.

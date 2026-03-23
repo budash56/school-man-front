@@ -29,6 +29,7 @@ import {
   ManageAccounts as ManageAccountsIcon,
   Work as WorkIcon,
   EventAvailable as EventAvailableIcon,
+  CalendarMonth as CalendarMonthIcon,
   TableChart as TableChartIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -73,6 +74,7 @@ export const DashboardLayout = () => {
   const navItems = useMemo<NavItem[]>(() => {
     const items: NavItem[] = [
       { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
+      { label: 'Calendar', path: '/dashboard/calendar', icon: <CalendarMonthIcon /> },
       { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
       { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
       { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
@@ -80,14 +82,14 @@ export const DashboardLayout = () => {
       { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
       { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },
       { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
-      { label: 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
+      { label: user?.role === 'teacher' ? 'Area' : 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
       { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
       // Future version: enable timetable generator when ready.
     ]
 
     if (user?.role === 'registrar') {
       return items.filter((item) =>
-        ['/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
+        ['/dashboard/calendar', '/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
       )
     }
 
@@ -95,6 +97,7 @@ export const DashboardLayout = () => {
       return items.filter(
         (item) =>
           ![
+            '/dashboard/calendar',
             '/dashboard/enrollments',
             '/dashboard/curriculum',
             '/dashboard/class-groups',

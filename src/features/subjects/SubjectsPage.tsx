@@ -253,6 +253,8 @@ export const SubjectsPage = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
+  const isTeacherView = user?.role === 'teacher'
+  const pageTitle = isTeacherView ? 'Area' : 'Áreas'
 
   const [search, setSearch] = useState('')
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null)
@@ -547,7 +549,7 @@ export const SubjectsPage = () => {
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2}>
-        <Typography variant="h4">Áreas</Typography>
+        <Typography variant="h4">{pageTitle}</Typography>
         <Box sx={{ flexGrow: 1 }} />
         {!selectedArea ? (
           <Button
@@ -562,7 +564,11 @@ export const SubjectsPage = () => {
       </Stack>
 
       {!canManage ? (
-        <Alert severity="info">Modo solo lectura para tu rol.</Alert>
+        <Alert severity="info">
+          {isTeacherView
+            ? 'Vista de consulta. Solo ves las áreas en las que enseñas y los profesores asociados.'
+            : 'Modo solo lectura para tu rol.'}
+        </Alert>
       ) : null}
 
       {isLoading ? (
@@ -1132,7 +1138,7 @@ export const SubjectsPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSelectedTeacher(null)}>Cerrar</Button>
-          {teacherDialogState ? (
+          {teacherDialogState && canManage ? (
             <Button
               variant="contained"
               onClick={() => {

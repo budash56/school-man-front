@@ -664,11 +664,17 @@ const PlanillasPage = () => {
       return
     }
 
-    if (planillas.length === 0 || pendingImportPlanillas.length > 0) {
+    if (pendingImportPlanillas.length > 0) {
+      return
+    }
+
+    if (importWorkflowPlanillas.length > 0) {
       return
     }
 
     resetImportSelection()
+    setDismissedImportPlanillaIds([])
+    setSelectedGradeLevel('')
     setSelectedPlanillaId(null)
     setDraftTitle('')
     setDraftMetadata({
@@ -682,7 +688,10 @@ const PlanillasPage = () => {
     setNewSpecializationName('')
     setIsDirty(false)
     setCurrentDocumentRowId(null)
-  }, [isTeacherView, pendingImportPlanillas.length, planillas.length])
+    setImportSummary(null)
+    setFinalizeResult(null)
+    setPageMessage(null)
+  }, [importWorkflowPlanillas.length, isTeacherView, pendingImportPlanillas.length])
 
   const specializationAreas = useMemo(() => {
     const merged = [...createdSpecializationAreas, ...((subjectAreasResult?.data ?? []).filter((area) => area.isSpecialization))]

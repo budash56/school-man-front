@@ -26,18 +26,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { attendanceApi, type AttendanceStatus } from '../../api/attendanceApi'
 import { coursesApi } from '../../api/coursesApi'
 import { useAuth } from '../auth/AuthContext'
+import { AcademicCalendarBoard } from '../calendar/AcademicCalendarBoard'
+import { useAcademicCalendarData } from '../calendar/useAcademicCalendarData'
 import { useSchoolYearsQuery } from '../schoolYears/useSchoolYearsQuery'
 import RegistrarAttendanceView from './RegistrarAttendanceView'
 import {
-  addDays,
-  buildCalendarMonth,
   isInstructionalDay,
   parseIsoDate,
   startOfMonth,
   toIsoDate,
 } from './colombiaCalendar'
 
-const weekdayLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const editableRoles = new Set(['admin', 'coordinator', 'teacher'])
 
 const statusLabel: Record<AttendanceStatus, string> = {
@@ -60,6 +59,7 @@ export const AttendancePage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
   const queryClient = useQueryClient()
   const today = useMemo(() => new Date(), [])
+  const todayIso = useMemo(() => toIsoDate(today), [today])
   const [selectedDate, setSelectedDate] = useState(toIsoDate(today))
   const [visibleMonth, setVisibleMonth] = useState(startOfMonth(today))
   const [selectedSchoolYearId, setSelectedSchoolYearId] = useState<number | ''>('')
@@ -138,6 +138,19 @@ export const AttendancePage = () => {
     () => sortedCourses.find((course) => course.courseId === selectedCourseId) ?? null,
     [selectedCourseId, sortedCourses],
   )
+
+  const selectedSchoolYear = useMemo(
+    () =>
+      sortedSchoolYears.find((schoolYear) => schoolYear.schoolYearId === selectedSchoolYearId) ??
+      null,
+    [selectedSchoolYearId, sortedSchoolYears],
+  )
+
+  const { items: calendarItems } = useAcademicCalendarData({
+    schoolYear: selectedSchoolYear,
+    user,
+    enabled: Boolean(selectedSchoolYear?.schoolYearId && user?.nationalId),
+  })
 
   const {
     data: roster,
@@ -227,12 +240,6 @@ export const AttendancePage = () => {
     })
   }, [groupSearch, roster?.students])
 
-  const calendarMonth = useMemo(() => buildCalendarMonth(visibleMonth), [visibleMonth])
-  const selectedDay = useMemo(
-    () => calendarMonth.weeks.flat().find((day) => day.isoDate === selectedDate) ?? null,
-    [calendarMonth.weeks, selectedDate],
-  )
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!selectedCourse || !roster) {
@@ -281,6 +288,8 @@ export const AttendancePage = () => {
   })
 
   const nonInstructionalDay = !isInstructionalDay(selectedDate)
+  const isFutureDate = selectedDate > todayIso
+  const canEditSelectedDate = canEditAttendance && !nonInstructionalDay && !isFutureDate
 
   return (
     <Box display="flex" flexDirection="column" gap={2}>
@@ -296,93 +305,29 @@ export const AttendancePage = () => {
         El calendario marca fines de semana y festivos oficiales de Colombia. La importación de horarios de profesores queda como TODO para la siguiente fase.
       </Alert>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: 'minmax(360px, 420px) 1fr' },
-          gap: 2,
+      <AcademicCalendarBoard
+        items={calendarItems}
+        visibleMonth={visibleMonth}
+        selectedDate={selectedDate}
+        onSelectDate={(isoDate) => {
+          setSelectedDate(isoDate)
+          setVisibleMonth(startOfMonth(parseIsoDate(isoDate)))
         }}
-      >
-        <Paper sx={{ p: 2 }}>
-          <Stack spacing={2}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Button onClick={() => setVisibleMonth(addDays(startOfMonth(visibleMonth), -1))}>
-                Mes anterior
-              </Button>
-              <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>
-                {calendarMonth.label}
-              </Typography>
-              <Button onClick={() => setVisibleMonth(addDays(new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1), 0))}>
-                Mes siguiente
-              </Button>
-            </Stack>
+        onPreviousMonth={() =>
+          setVisibleMonth(
+            new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() - 1, 1),
+          )
+        }
+        onNextMonth={() =>
+          setVisibleMonth(
+            new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 1),
+          )
+        }
+        isDateDisabled={(day) => day.isWeekend}
+        selectedDateEmptyText="No hay eventos o hitos académicos para esta fecha."
+      />
 
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip size="small" label="Clase" />
-              <Chip size="small" label="Fin de semana" color="default" variant="outlined" />
-              <Chip size="small" label="Festivo Colombia" color="warning" variant="outlined" />
-              <Chip size="small" label="Seleccionado" color="primary" />
-            </Stack>
-
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: 0.5, sm: 1 } }}>
-              {weekdayLabels.map((label) => (
-                <Typography key={label} variant="caption" color="text.secondary" textAlign="center">
-                  {label}
-                </Typography>
-              ))}
-              {calendarMonth.weeks.flat().map((day) => {
-                const isSelected = day.isoDate === selectedDate
-                const isWeekendDisabled = day.isWeekend
-                return (
-                  <Button
-                    key={day.key}
-                    variant={isSelected ? 'contained' : 'outlined'}
-                    color={day.holidayName ? 'warning' : isSelected ? 'primary' : 'inherit'}
-                    onClick={() => {
-                      if (isWeekendDisabled) {
-                        return
-                      }
-                      setSelectedDate(day.isoDate)
-                      setVisibleMonth(startOfMonth(parseIsoDate(day.isoDate)))
-                    }}
-                    disabled={isWeekendDisabled}
-                    sx={{
-                      minWidth: 0,
-                      px: { xs: 0.25, sm: 0.5 },
-                      py: { xs: 0.75, sm: 1 },
-                      minHeight: { xs: 54, sm: 64 },
-                      opacity: day.isCurrentMonth ? 1 : 0.45,
-                      borderColor: day.isWeekend ? 'divider' : undefined,
-                    }}
-                  >
-                    <Stack spacing={0.25} alignItems="center">
-                      <Typography variant="body2">{day.dayNumber}</Typography>
-                      {day.holidayName ? (
-                        <Typography variant="caption" align="center">
-                          FE
-                        </Typography>
-                      ) : null}
-                    </Stack>
-                  </Button>
-                )
-              })}
-            </Box>
-
-            <Box>
-              <Typography variant="subtitle2">Fecha seleccionada</Typography>
-              <Typography variant="body1">{selectedDate}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                {selectedDay?.holidayName
-                  ? selectedDay.holidayName
-                  : selectedDay?.isWeekend
-                    ? 'Fin de semana'
-                    : 'Día lectivo'}
-              </Typography>
-            </Box>
-          </Stack>
-        </Paper>
-
-        <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: 2 }}>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
               <FormControl fullWidth>
@@ -454,6 +399,12 @@ export const AttendancePage = () => {
               </Alert>
             ) : null}
 
+            {isFutureDate ? (
+              <Alert severity="info">
+                Solo puedes registrar o editar asistencia para hoy o fechas anteriores. Las fechas futuras quedan en modo consulta.
+              </Alert>
+            ) : null}
+
             {saveError ? <Alert severity="error">{saveError}</Alert> : null}
             {saveSuccess ? <Alert severity="success">{saveSuccess}</Alert> : null}
 
@@ -485,8 +436,7 @@ export const AttendancePage = () => {
                 variant="contained"
                 onClick={() => saveMutation.mutate()}
                 disabled={
-                  !canEditAttendance ||
-                  nonInstructionalDay ||
+                  !canEditSelectedDate ||
                   !selectedCourse ||
                   !roster?.students.length ||
                   saveMutation.isPending
@@ -541,7 +491,7 @@ export const AttendancePage = () => {
                                     [student.studentId]: event.target.value as AttendanceStatus | '',
                                   }))
                                 }
-                                disabled={nonInstructionalDay}
+                                disabled={!canEditSelectedDate}
                               >
                                 <MenuItem value="">Sin marcar</MenuItem>
                                 <MenuItem value="P">Presente</MenuItem>
@@ -606,7 +556,7 @@ export const AttendancePage = () => {
                                         [student.studentId]: event.target.value as AttendanceStatus | '',
                                       }))
                                     }
-                                    disabled={nonInstructionalDay}
+                                    disabled={!canEditSelectedDate}
                                   >
                                     <MenuItem value="">Sin marcar</MenuItem>
                                     <MenuItem value="P">Presente</MenuItem>
@@ -648,8 +598,7 @@ export const AttendancePage = () => {
               </Alert>
             ) : null}
           </Stack>
-        </Paper>
-      </Box>
+      </Paper>
     </Box>
   )
 }
