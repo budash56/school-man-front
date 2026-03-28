@@ -19,6 +19,7 @@ import WorkLoadPage from './features/workload/WorkLoadPage'
 import AttendancePage from './features/attendance/AttendancePage'
 import PlanillasPage from './features/planillas/PlanillasPage'
 import CalendarPage from './features/calendar/CalendarPage'
+import DocumentsPage from './features/documents/DocumentsPage'
 
 function DashboardIndexPage() {
   return <DashboardHomePage />
@@ -36,6 +37,9 @@ function App() {
           <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="planillas" element={<PlanillasPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinator', 'registrar']} />}>
+            <Route path="documents" element={<DocumentsPage />} />
+          </Route>
           <Route element={<ProtectedRoute allowedRoles={['admin', 'coordinator', 'teacher']} />}>
             <Route path="discipline" element={<DisciplinePage />} />
           </Route>

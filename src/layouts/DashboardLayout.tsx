@@ -31,6 +31,7 @@ import {
   EventAvailable as EventAvailableIcon,
   CalendarMonth as CalendarMonthIcon,
   TableChart as TableChartIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -75,6 +76,7 @@ export const DashboardLayout = () => {
     const items: NavItem[] = [
       { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
       { label: 'Calendar', path: '/dashboard/calendar', icon: <CalendarMonthIcon /> },
+      { label: 'Documentos', path: '/dashboard/documents', icon: <PrintIcon /> },
       { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
       { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
       { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
@@ -89,7 +91,7 @@ export const DashboardLayout = () => {
 
     if (user?.role === 'registrar') {
       return items.filter((item) =>
-        ['/dashboard/calendar', '/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
+        ['/dashboard/calendar', '/dashboard/documents', '/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
       )
     }
 
@@ -98,6 +100,7 @@ export const DashboardLayout = () => {
         (item) =>
           ![
             '/dashboard/calendar',
+            '/dashboard/documents',
             '/dashboard/enrollments',
             '/dashboard/curriculum',
             '/dashboard/class-groups',

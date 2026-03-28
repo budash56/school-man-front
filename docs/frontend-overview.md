@@ -8,7 +8,7 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 - **Routing:** `react-router-dom@6` handles public `/login` and protected `/dashboard/*` routes. `ProtectedRoute` ensures users are authenticated before visiting any dashboard page and enforces password rotation when `mustChangePassword` is true.
 - **API Access:** `src/api/apiClient.ts` centralizes fetch logic, attaches JWT tokens, serializes query params, and converts server errors into typed `ApiError`s that UI components can surface.
 - **State & Theming:** Local component state + TanStack Query for server-cache, `ColorModeProvider` wraps MUI’s `ThemeProvider` with a persisted light/dark toggle.
-- **UI Scope:** LAN-only intranet for admins, coordinators, registrars, and teachers. Current flows cover students, enrollments, school years, curriculum, subject areas, buildings/classrooms, workload assignment, attendance/calendar, planillas import + teacher gradebooks, users, and related dashboards. Recent work added the attendance calendar, workload matrix, teacher-scoped student browsing, exact teacher-subject assignment, planillas roster editing, and a phone-readability pass for the densest screens.
+- **UI Scope:** LAN-only intranet for admins, coordinators, registrars, and teachers. Current flows cover students, enrollments, school years, curriculum, subject areas, buildings/classrooms, workload assignment, attendance/calendar, planillas import + teacher gradebooks, **printable academic documents**, users, and related dashboards. Recent work added the attendance calendar, workload matrix, teacher-scoped student browsing, exact teacher-subject assignment, planillas roster editing, the new `Documentos` workspace, and a phone-readability pass for the densest screens.
 
 ## Repository Layout
 
@@ -18,15 +18,15 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 | `src/App.tsx` | Declares all app routes (`/login`, `/dashboard/*`) and guards protected sections. |
 | `src/layouts/DashboardLayout.tsx` | Shell with responsive sidebar navigation, top app bar, role display, color-mode toggle, and logout handling. |
 | `src/features/auth/` | Login page, context (`AuthProvider`), hook (`useAuth`), `ProtectedRoute`, and `ChangePasswordPage`. Handles login, logout, token persistence, `/auth/me` restore, and mandatory password change. |
-| `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, etc.). |
-| `src/features/*` | Feature folders (students, enrollments, attendance, classrooms, curriculum, dashboard, discipline, planillas, schoolYears, subjects, users, workload). Each folder contains pages, hooks, and components for that domain. |
+| `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, `reportsApi`, etc.). |
+| `src/features/*` | Feature folders (students, enrollments, attendance, classrooms, curriculum, dashboard, discipline, documents, planillas, schoolYears, subjects, users, workload). Each folder contains pages, hooks, and components for that domain. |
 | `src/theme/` | `ColorModeProvider` and shared theme configuration (persistent light/dark toggle). |
 | `docs/` | Project documentation (`frontend-overview.md`). |
 
 ## Runtime Architecture
 
 ### Application Shell & Navigation
-- **DashboardLayout:** Houses the sidebar and app bar. It lists nav items (“Dashboard”, “Students”, “Asistencia”, “Enrollments”, “Currículo”, “School years”, “Discipline”, “Áreas”, “Classrooms”, “WorkLoad”), highlights the active path, and exposes logout + color-mode controls. The user’s name and role are shown using `useAuth()`.
+- **DashboardLayout:** Houses the sidebar and app bar. It lists nav items (“Dashboard”, “Calendar”, “Documentos”, “Students”, “Asistencia”, “Planillas”, plus admin/coordinator management sections), highlights the active path, and exposes logout + color-mode controls. The user’s name and role are shown using `useAuth()`.
 - **Responsive shell:** The layout now adapts to phone widths using MUI breakpoints. On small screens the drawer becomes a temporary overlay, paddings shrink, and low-value header text is hidden so the content area gets more usable space.
 - **ProtectedRoute:** Wraps all `/dashboard/*` routes. If `useAuth()` reports no user, it redirects to `/login`, optionally preserving the desired destination.
 - **Password rotation:** When `user.mustChangePassword` is true (non-admin users), the app forces `/change-password` until a new password is set via `/auth/change-password`.
@@ -91,6 +91,14 @@ This document describes the current behaviour of the SchoolMan frontend codebase
   - list queries use `placeholderData: keepPreviousData`, avoiding blank states while filters or year changes are in flight
   - selected planilla detail is prefetched for the active/first sheet and again on chip hover/focus, so switching between groups feels much faster
 - Teacher roster cells remain keyboard-friendly even though they render as dropdowns: tab into a slot and type `S`, `A`, `B`, or `J` to set the value immediately.
+
+### Documents (/dashboard/documents)
+- Visible to `admin`, `coordinator`, and `registrar`.
+- Uses `reportsApi` to consume the new planilla-backed document endpoints from the backend.
+- Provides two print-preparation flows:
+  - **Boletín / récord:** choose school year, search a student, select periods (`1`, `1,2,3`, `4`, or all), and preview a printable table with subject name plus `Proc`, `Cog`, and `Act` per selected period.
+  - **Promoción / graduación:** choose school year, grade, and optional group, then preview the list of eligible and non-eligible students with rule-based observations.
+- Uses the browser print flow (`window.print`) for now. The page is intentionally template-light until the final official document design is supplied.
 
 ### Curriculum, Subjects, and WorkLoad
 - **CurriculumPage (/dashboard/curriculum):**
@@ -199,12 +207,15 @@ All hooks follow the same pattern: descriptive `queryKey`, early return/`enabled
 - **WorkLoad:** Added subject-to-teacher-to-group assignment driven by curriculum, class groups, and teacher-subject eligibility.
 - **Planillas performance pass:** The list now renders from summary-only payloads, defers group-search refetches, and prefetches selected group details so heavy gradebook data loads only when needed.
 - **Calendar tab:** Added `/dashboard/calendar` for all roles. Admin/coordinator configure official school-year + P1-P4 dates and create community events; teachers see upcoming events on the dashboard and can publish class-group events; registrars get a read-only filtered calendar.
+- **Documents workspace:** Added `/dashboard/documents` for admin/coordinator/registrar with printable previews for student records, promotion, and graduation using planilla-backed backend reports.
 - **Buildings/classrooms:** Added building flags, generated classroom names, and manual group-to-classroom assignment flows.
 - **Responsive phone pass:** dashboard shell, students, attendance, and workload now switch to more readable mobile layouts/cards on small screens.
 - **Password change enforcement:** Non-admin users flagged `mustChangePassword` are forced to `/change-password`.
 - **Timetable generator hidden:** Route and nav entry are disabled until the feature is ready.
 
 ## Future Work
+- Apply the final official print templates/PDF layout once the stationery is provided.
+- Add OCR-assisted planilla import from photos. The current frontend expectation is a review-first workflow: upload/capture image, receive a parsed draft from the OCR service, then let the user correct rows/cells before saving. Corrected imports should be stored as examples so the OCR pipeline can improve over time.
 - Flesh out the dashboard widgets once the backend dashboards endpoints are exposed to the frontend.
 - Wire “Discipline” page and additional settings pages using the existing API layer structure.
 - Add optimistic updates or inline editing patterns for frequently edited entities (students, enrollments) using TanStack Query mutations.
