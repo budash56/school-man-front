@@ -8,6 +8,7 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Divider,
   FormControl,
   FormControlLabel,
   InputLabel,
@@ -39,6 +40,10 @@ import {
   type PlanillaSheetSummary,
   type PlanillaSummary,
 } from '../../api/planillasApi'
+import {
+  scannerApi,
+  type ScannedPlanillaResponse,
+} from '../../api/scannerApi'
 
 type MetadataDraft = {
   subjectName: string
@@ -307,6 +312,16 @@ const formatDateLabel = (value: string) => {
   }).format(parsed)
 }
 
+const formatFileSize = (sizeBytes: number) => {
+  if (sizeBytes < 1024) {
+    return `${sizeBytes} B`
+  }
+  if (sizeBytes < 1024 * 1024) {
+    return `${(sizeBytes / 1024).toFixed(1)} KB`
+  }
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 const buildProfessorPeriodState = (
   period: number,
   term: Term | undefined,
@@ -425,6 +440,9 @@ const PlanillasPage = () => {
   const deferredGroupSearch = useDeferredValue(groupSearch.trim())
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importInputKey, setImportInputKey] = useState(0)
+  const [scanFile, setScanFile] = useState<File | null>(null)
+  const [scanInputKey, setScanInputKey] = useState(0)
+  const [scanResult, setScanResult] = useState<ScannedPlanillaResponse | null>(null)
   const [dismissedImportPlanillaIds, setDismissedImportPlanillaIds] = useState<number[]>([])
   const [replaceExisting, setReplaceExisting] = useState(true)
   const [draftTitle, setDraftTitle] = useState('')
@@ -531,6 +549,11 @@ const PlanillasPage = () => {
   const resetImportSelection = () => {
     setImportFile(null)
     setImportInputKey((current) => current + 1)
+  }
+
+  const resetScanSelection = () => {
+    setScanFile(null)
+    setScanInputKey((current) => current + 1)
   }
 
   const gradeOptions = useMemo(
@@ -822,6 +845,22 @@ const PlanillasPage = () => {
     },
     onError: (error) => {
       setPageMessage(error instanceof Error ? error.message : 'No se pudo importar la planilla.')
+    },
+  })
+
+  const scanMutation = useMutation({
+    mutationFn: () => {
+      if (!scanFile) {
+        throw new Error('Selecciona un PDF o una imagen para escanear.')
+      }
+      return scannerApi.scanPlanilla(scanFile)
+    },
+    onSuccess: (result) => {
+      setScanResult(result)
+      resetScanSelection()
+    },
+    onError: (error) => {
+      setPageMessage(error instanceof Error ? error.message : 'No se pudo escanear la planilla.')
     },
   })
 
@@ -1264,6 +1303,131 @@ const PlanillasPage = () => {
             <Typography variant="body2" color="text.secondary">
               La reimportación conserva cédulas y celdas editadas cuando el nombre del estudiante coincide.
             </Typography>
+          </Stack>
+        </Paper>
+      ) : null}
+
+      {canImport ? (
+        <Paper sx={{ p: 2.5 }}>
+          <Stack spacing={2}>
+            <Stack spacing={0.5}>
+              <Typography variant="h6">Escanear planilla</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Envía un PDF o una imagen al servicio SchoolScanner a través del backend autenticado. Por ahora devuelve un borrador de revisión y no reemplaza la importación desde Excel.
+              </Typography>
+            </Stack>
+
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+              <Button variant="outlined" component="label">
+                {scanFile ? scanFile.name : 'Seleccionar PDF o imagen'}
+                <input
+                  key={scanInputKey}
+                  hidden
+                  type="file"
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  onChange={(event) => setScanFile(event.target.files?.[0] ?? null)}
+                />
+              </Button>
+              <Button
+                variant="contained"
+                onClick={() => scanMutation.mutate()}
+                disabled={scanMutation.isPending || !scanFile}
+              >
+                {scanMutation.isPending ? 'Escaneando...' : 'Escanear planilla'}
+              </Button>
+              <Button
+                variant="text"
+                onClick={() => {
+                  resetScanSelection()
+                  setScanResult(null)
+                }}
+                disabled={!scanFile && !scanResult}
+              >
+                Limpiar
+              </Button>
+            </Stack>
+
+            {scanResult ? (
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Stack spacing={2}>
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    <Chip size="small" label={`Estado ${scanResult.status}`} color="primary" />
+                    <Chip size="small" label={`Plantilla ${scanResult.templateKey}`} />
+                    <Chip
+                      size="small"
+                      label={`Filas ${scanResult.rows.length}`}
+                      color={scanResult.rows.length > 0 ? 'success' : 'default'}
+                    />
+                  </Stack>
+
+                  <Typography variant="body2" color="text.secondary">
+                    {scanResult.message}
+                  </Typography>
+
+                  <Divider />
+
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Archivo:</Box> {scanResult.uploadedFile.filename}
+                    </Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Tipo:</Box> {scanResult.uploadedFile.contentType}
+                    </Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Tamaño:</Box> {formatFileSize(scanResult.uploadedFile.sizeBytes)}
+                    </Typography>
+                  </Stack>
+
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Grado:</Box> {scanResult.metadata.gradeLevel ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Grupo:</Box> {scanResult.metadata.groupCode ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Materia:</Box> {scanResult.metadata.subjectName ?? '—'}
+                    </Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ fontWeight: 600 }}>Profesor:</Box> {scanResult.metadata.teacherName ?? '—'}
+                    </Typography>
+                  </Stack>
+
+                  {scanResult.rows.length > 0 ? (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Orden</TableCell>
+                            <TableCell>Estudiante</TableCell>
+                            <TableCell>Documento</TableCell>
+                            <TableCell>Celdas detectadas</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {scanResult.rows.slice(0, 8).map((row) => (
+                            <TableRow key={`scan-row-${row.order}`}>
+                              <TableCell>{row.order}</TableCell>
+                              <TableCell>{row.studentName ?? '—'}</TableCell>
+                              <TableCell>{row.nationalId ?? '—'}</TableCell>
+                              <TableCell>{Object.keys(row.cells).length}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Alert severity="info">
+                      El escáner respondió correctamente, pero todavía no devolvió filas extraídas.
+                    </Alert>
+                  )}
+                </Stack>
+              </Paper>
+            ) : (
+              <Alert severity="info">
+                Selecciona un archivo para probar la conexión backend → SchoolScanner.
+              </Alert>
+            )}
           </Stack>
         </Paper>
       ) : null}

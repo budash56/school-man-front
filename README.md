@@ -21,7 +21,6 @@ This document describes the current behaviour of the SchoolMan frontend codebase
 | `src/api/` | Typed API helpers (`apiClient`, `authApi`, `studentsApi`, `enrollmentsApi`, `schoolYearsApi`, `classGroupsApi`, `disciplinaryRecordsApi`, etc.). |
 | `src/features/*` | Feature folders (students, enrollments, classGroups, discipline, dashboard, schoolYears). Each folder contains pages, hooks, and components for that domain. |
 | `src/theme/` | `ColorModeProvider` and shared theme configuration (persistent light/dark toggle). |
-| `docs/` | Project documentation (`frontend-overview.md`). |
 
 ## Runtime Architecture
 

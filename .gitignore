@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Presentation-only files
+AGENTS.md
+/docs/
+*.zip
+**/*.zip
+*.md
+**/*.md
+!README.md
