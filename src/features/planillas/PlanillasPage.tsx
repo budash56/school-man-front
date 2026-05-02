@@ -183,6 +183,7 @@ const LETTER_MARK_OPTIONS = ['', 'S', 'A', 'B', 'J'] as const
 const RANDOM_LETTER_MARKS = ['S', 'A', 'B', 'J'] as const
 const RANDOM_NATIONAL_ID_MIN = 100_000_000
 const RANDOM_NATIONAL_ID_RANGE = 900_000_000
+const ENABLE_TEST_FEATURES = import.meta.env.VITE_ENABLE_TEST_FEATURES === 'true'
 
 const professorGradeSelectBaseStyle: CSSProperties = {
   width: '100%',
@@ -1800,19 +1801,23 @@ const PlanillasPage = () => {
                         <Typography variant="body2" color="text.secondary">
                           Los estudiantes con RET se crearán o actualizarán como inactivos al finalizar la importación.
                         </Typography>
-                        <Typography variant="caption" color="warning.main">
-                          Test feature: genera documentos aleatorios únicos para toda la importación actual.
-                        </Typography>
+                        {ENABLE_TEST_FEATURES ? (
+                          <Typography variant="caption" color="warning.main">
+                            Test feature: genera documentos aleatorios únicos para toda la importación actual.
+                          </Typography>
+                        ) : null}
                       </Stack>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Button
-                          variant="outlined"
-                          color="warning"
-                          onClick={fillImportRowsWithRandomNationalIds}
-                          disabled={!canEditRoster || saveMutation.isPending || draftRows.length === 0}
-                        >
-                          IDs aleatorios
-                        </Button>
+                        {ENABLE_TEST_FEATURES ? (
+                          <Button
+                            variant="outlined"
+                            color="warning"
+                            onClick={fillImportRowsWithRandomNationalIds}
+                            disabled={!canEditRoster || saveMutation.isPending || draftRows.length === 0}
+                          >
+                            IDs aleatorios
+                          </Button>
+                        ) : null}
                         <Button
                           variant="contained"
                           onClick={() => saveMutation.mutate()}
@@ -2009,21 +2014,25 @@ const PlanillasPage = () => {
                         <Typography variant="body2" color="text.secondary">
                           Guarda la planilla para conservar los avances por estudiante y por periodo.
                         </Typography>
-                        <Typography variant="caption" color="warning.main">
-                          Test feature: llena con notas aleatorias solo los periodos visibles.
-                        </Typography>
+                        {ENABLE_TEST_FEATURES ? (
+                          <Typography variant="caption" color="warning.main">
+                            Test feature: llena con notas aleatorias solo los periodos visibles.
+                          </Typography>
+                        ) : null}
                       </Stack>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Button
-                          variant="outlined"
-                          color="warning"
-                          onClick={fillVisibleProfessorPeriodsWithRandomGrades}
-                          disabled={
-                            saveMutation.isPending || visibleEditableProfessorColumnKeys.length === 0
-                          }
-                        >
-                          Notas aleatorias
-                        </Button>
+                        {ENABLE_TEST_FEATURES ? (
+                          <Button
+                            variant="outlined"
+                            color="warning"
+                            onClick={fillVisibleProfessorPeriodsWithRandomGrades}
+                            disabled={
+                              saveMutation.isPending || visibleEditableProfessorColumnKeys.length === 0
+                            }
+                          >
+                            Notas aleatorias
+                          </Button>
+                        ) : null}
                         <Button
                           variant="contained"
                           onClick={() => saveMutation.mutate()}
