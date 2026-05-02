@@ -27,6 +27,7 @@ export type ScannedPlanillaResponse = {
   uploadedFile: ScannedPlanillaFile
   metadata: ScannedPlanillaMetadata
   rows: ScannedPlanillaRow[]
+  warnings: string[]
 }
 
 export const scannerApi = {

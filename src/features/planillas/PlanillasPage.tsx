@@ -1364,6 +1364,12 @@ const PlanillasPage = () => {
                     {scanResult.message}
                   </Typography>
 
+                  {scanResult.warnings.length > 0 ? (
+                    <Alert severity="warning">
+                      {scanResult.warnings.join(' ')}
+                    </Alert>
+                  ) : null}
+
                   <Divider />
 
                   <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
@@ -1394,7 +1400,7 @@ const PlanillasPage = () => {
                   </Stack>
 
                   {scanResult.rows.length > 0 ? (
-                    <TableContainer component={Paper} variant="outlined">
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 420 }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
@@ -1405,7 +1411,7 @@ const PlanillasPage = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {scanResult.rows.slice(0, 8).map((row) => (
+                          {scanResult.rows.map((row) => (
                             <TableRow key={`scan-row-${row.order}`}>
                               <TableCell>{row.order}</TableCell>
                               <TableCell>{row.studentName ?? '—'}</TableCell>
