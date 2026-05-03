@@ -81,13 +81,13 @@ export const DashboardLayout = () => {
       { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
       { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
       { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
+      { label: 'Timetable', path: '/dashboard/timetable', icon: <ViewWeekIcon /> },
       { label: 'Enrollments', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
       { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
       { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },
       { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
       { label: user?.role === 'teacher' ? 'Area' : 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
       { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
-      { label: 'Timetable', path: '/dashboard/timetable', icon: <ViewWeekIcon /> },
     ]
 
     if (user?.role === 'registrar') {
@@ -234,6 +234,7 @@ export const DashboardLayout = () => {
             '& .MuiDrawer-paper': {
               width: { xs: 'min(88vw, 320px)', md: desktopDrawerWidth },
               boxSizing: 'border-box',
+              overflowY: 'auto',
             },
           }}
         >
