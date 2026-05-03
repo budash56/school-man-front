@@ -1,6 +1,4 @@
 :root {
-  --schoolman-default-zoom: 0.7;
-
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -33,5 +31,4 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: #f5f7fb;
-  zoom: var(--schoolman-default-zoom);
 }
