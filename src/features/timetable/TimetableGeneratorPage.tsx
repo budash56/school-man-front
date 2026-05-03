@@ -50,6 +50,49 @@ import { scannerApi, type ScannedTimetableResponse } from '../../api/scannerApi'
 
 const CREATE_DEFAULT_WEEKLY_CAP = 25
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const formatTimetableImportError = (error: unknown) => {
+  if (!(error instanceof ApiError)) {
+    return error instanceof Error ? error.message : 'No se pudo confirmar la importación.'
+  }
+
+  const details = error.details
+  if (!isRecord(details)) {
+    return error.message
+  }
+
+  const message = typeof details.message === 'string' ? details.message : error.message
+  const conflicts = Array.isArray(details.conflicts) ? details.conflicts : []
+  if (conflicts.length === 0) {
+    return message
+  }
+
+  const lines = conflicts.slice(0, 30).flatMap((conflict) => {
+    if (!isRecord(conflict)) {
+      return []
+    }
+    const grade = conflict.gradeLevel ?? '?'
+    const subject = conflict.subjectName ?? conflict.subjectCode ?? 'Asignatura'
+    const expected = conflict.expectedWeeklyHours ?? '?'
+    const groups = Array.isArray(conflict.groups) ? conflict.groups : []
+    return [
+      `Grado ${grade} · ${subject} · intensidad esperada ${expected}`,
+      ...groups.map((group) => {
+        if (!isRecord(group)) {
+          return ''
+        }
+        const slots = Array.isArray(group.slots) ? group.slots.join(', ') : ''
+        return `  ${group.groupCode ?? '?'}: ${group.weeklyHours ?? 0} horas${slots ? ` (${slots})` : ''}`
+      }).filter(Boolean),
+    ]
+  })
+
+  const remainder = conflicts.length > 30 ? `\n...${conflicts.length - 30} conflictos más.` : ''
+  return `${message}\n${lines.join('\n')}${remainder}`
+}
 const WORKING_DAYS = [1, 2, 3, 4, 5]
 
 const timeToMinutes = (value: string) => {
@@ -489,11 +532,7 @@ const TimetableGeneratorPage = () => {
       queryClient.invalidateQueries({ queryKey: ['has-timetable'] })
     },
     onError: (error) => {
-      setTimetableImportError(
-        error instanceof ApiError || error instanceof Error
-          ? error.message
-          : 'No se pudo confirmar la importación.',
-      )
+      setTimetableImportError(formatTimetableImportError(error))
     },
   })
 
@@ -1703,7 +1742,9 @@ const TimetableGeneratorPage = () => {
           </Box>
         </Stack>
 
-        {timetableImportError ? <Alert severity="error">{timetableImportError}</Alert> : null}
+        {timetableImportError ? (
+          <Alert severity="error" sx={{ whiteSpace: 'pre-line' }}>{timetableImportError}</Alert>
+        ) : null}
         {timetableImportResult ? (
           <Stack spacing={2}>
             <Alert severity="info">{timetableImportResult.message}</Alert>
