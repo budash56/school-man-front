@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient'
+import type { ScannedTimetableResponse } from './scannerApi'
 
 export type PreferredShift = 'any' | 'morning' | 'afternoon'
 
@@ -58,6 +59,24 @@ export type TimetableApplyResponse = TimetablePreviewResponse & {
 
 export type GenerationApplyResult = TimetableApplyResponse
 
+export type TimetableImportApplyResponse = {
+  imported: {
+    teachers: number
+    subjectAreas: number
+    subjects: number
+    classGroups: number
+    curricula: number
+    curriculumItems: number
+    courseInstances: number
+    courses: number
+    slots: number
+    assignments: number
+  }
+  skippedAssignments: number
+  defaultTeacherPassword: string
+  message: string
+}
+
 export type TimetableAssignment = {
   assignmentId: string
   courseId: string
@@ -116,5 +135,8 @@ export const timetableGeneratorApi = {
     return apiClient.get<TimetableAssignment[]>('/timetable-assignments', {
       query: { classGroupId },
     })
+  },
+  confirmImport(payload: { schoolYearId: number; scan: ScannedTimetableResponse }) {
+    return apiClient.post<TimetableImportApplyResponse>('/timetable/import/confirm', payload)
   },
 }

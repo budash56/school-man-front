@@ -31,6 +31,7 @@ import {
   EventAvailable as EventAvailableIcon,
   CalendarMonth as CalendarMonthIcon,
   TableChart as TableChartIcon,
+  ViewWeek as ViewWeekIcon,
   Print as PrintIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -86,7 +87,7 @@ export const DashboardLayout = () => {
       { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
       { label: user?.role === 'teacher' ? 'Area' : 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
       { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
-      // Future version: enable timetable generator when ready.
+      { label: 'Timetable', path: '/dashboard/timetable', icon: <ViewWeekIcon /> },
     ]
 
     if (user?.role === 'registrar') {
@@ -105,6 +106,7 @@ export const DashboardLayout = () => {
             '/dashboard/curriculum',
             '/dashboard/class-groups',
             '/dashboard/classrooms',
+            '/dashboard/timetable',
             '/dashboard/workload',
           ].includes(item.path),
       )

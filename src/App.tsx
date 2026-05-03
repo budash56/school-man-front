@@ -20,6 +20,7 @@ import AttendancePage from './features/attendance/AttendancePage'
 import PlanillasPage from './features/planillas/PlanillasPage'
 import CalendarPage from './features/calendar/CalendarPage'
 import DocumentsPage from './features/documents/DocumentsPage'
+import TimetableGeneratorPage from './features/timetable/TimetableGeneratorPage'
 
 function DashboardIndexPage() {
   return <DashboardHomePage />
@@ -56,7 +57,7 @@ function App() {
             <Route path="class-groups" element={<SchoolYearsStaticPage />} />
             <Route path="classrooms" element={<ClassroomsPage />} />
             <Route path="workload" element={<WorkLoadPage />} />
-            {/* Future version: timetable generator route */}
+            <Route path="timetable" element={<TimetableGeneratorPage />} />
             <Route path="users" element={<UsersPage />} />
           </Route>
         </Route>

@@ -39,12 +39,14 @@ import {
   type TeacherConstraintDto,
   type TimetableApplyResponse,
   type TimetableAssignment,
+  type TimetableImportApplyResponse,
   type TimetablePreviewResponse,
 } from '../../api/timetableGeneratorApi'
 import { professorsApi } from '../../api/professorsApi'
 import { timetableSlotsApi } from '../../api/timetableSlotsApi'
 import { timetableAssignmentsApi } from '../../api/timetableAssignmentsApi'
 import { coursesApi, type CourseSummary } from '../../api/coursesApi'
+import { scannerApi, type ScannedTimetableResponse } from '../../api/scannerApi'
 
 const CREATE_DEFAULT_WEEKLY_CAP = 25
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -207,6 +209,9 @@ const TimetableGeneratorPage = () => {
   const [confirmDeleteTimetable, setConfirmDeleteTimetable] = useState(false)
   const [timetableMessage, setTimetableMessage] = useState<string | null>(null)
   const [capacityError, setCapacityError] = useState<CapacityShortage[] | null>(null)
+  const [timetableImportResult, setTimetableImportResult] = useState<ScannedTimetableResponse | null>(null)
+  const [timetableImportError, setTimetableImportError] = useState<string | null>(null)
+  const [timetableImportApplyResult, setTimetableImportApplyResult] = useState<TimetableImportApplyResponse | null>(null)
 
   const { data: schoolYears } = useSchoolYearsQuery({})
   const queryClient = useQueryClient()
@@ -442,6 +447,51 @@ const TimetableGeneratorPage = () => {
         return timetableGeneratorApi.getClassGroupTimetable(params.classGroupId)
       }
       return Promise.resolve([] as TimetableAssignment[])
+    },
+  })
+
+  const scanTimetableMutation = useMutation({
+    mutationFn: (file: File) => scannerApi.scanTimetable(file),
+    onSuccess: (result) => {
+      setTimetableImportResult(result)
+      setTimetableImportError(null)
+      setTimetableImportApplyResult(null)
+    },
+    onError: (error) => {
+      setTimetableImportResult(null)
+      setTimetableImportError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : 'No se pudo leer el horario.',
+      )
+    },
+  })
+
+  const confirmTimetableImportMutation = useMutation({
+    mutationFn: () => {
+      if (!schoolYearId || !timetableImportResult) {
+        throw new Error('Selecciona un año escolar y sube un horario antes de confirmar.')
+      }
+      return timetableGeneratorApi.confirmImport({
+        schoolYearId,
+        scan: timetableImportResult,
+      })
+    },
+    onSuccess: (result) => {
+      setTimetableImportApplyResult(result)
+      setTimetableImportError(null)
+      queryClient.invalidateQueries({ queryKey: ['professors', 'timetable'] })
+      queryClient.invalidateQueries({ queryKey: ['courses', schoolYearId] })
+      queryClient.invalidateQueries({ queryKey: ['class-groups', schoolYearId] })
+      queryClient.invalidateQueries({ queryKey: ['timetable-slots', schoolYearId, division] })
+      queryClient.invalidateQueries({ queryKey: ['has-timetable'] })
+    },
+    onError: (error) => {
+      setTimetableImportError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : 'No se pudo confirmar la importación.',
+      )
     },
   })
 
@@ -1618,6 +1668,108 @@ const TimetableGeneratorPage = () => {
     </Paper>
   )
 
+  const renderImportPanel = () => (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Stack spacing={2}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+          <Box>
+            <Typography variant="h6">Importar horario desde PDF</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Sube el horario de profesores para detectar profesores, grupos, asignaturas, franjas y clases antes de confirmar la carga.
+            </Typography>
+          </Box>
+          <Box>
+            <Button
+              component="label"
+              variant="outlined"
+              disabled={scanTimetableMutation.isPending}
+            >
+              {scanTimetableMutation.isPending ? 'Leyendo PDF...' : 'Subir PDF'}
+              <input
+                hidden
+                type="file"
+                accept="application/pdf"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) {
+                    scanTimetableMutation.mutate(file)
+                  }
+                }}
+              />
+            </Button>
+          </Box>
+        </Stack>
+
+        {timetableImportError ? <Alert severity="error">{timetableImportError}</Alert> : null}
+        {timetableImportResult ? (
+          <Stack spacing={2}>
+            <Alert severity="info">{timetableImportResult.message}</Alert>
+            {timetableImportResult.warnings.length > 0 ? (
+              <Alert severity="warning">{timetableImportResult.warnings.join(' ')}</Alert>
+            ) : null}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`${timetableImportResult.teachers.length} profesores`} />
+              <Chip label={`${timetableImportResult.classGroups.length} grupos`} />
+              <Chip label={`${timetableImportResult.subjects.length} asignaturas`} />
+              <Chip label={`${timetableImportResult.slots.length} franjas`} />
+              <Chip label={`${timetableImportResult.assignments.length} clases`} />
+            </Stack>
+            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 320 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Profesor</TableCell>
+                    <TableCell>Asignatura</TableCell>
+                    <TableCell>Grupo</TableCell>
+                    <TableCell>Día</TableCell>
+                    <TableCell>Periodo</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {timetableImportResult.assignments.slice(0, 80).map((assignment, index) => (
+                    <TableRow
+                      key={`${assignment.teacherId}-${assignment.groupCode}-${assignment.dayOfWeek}-${assignment.period}-${index}`}
+                    >
+                      <TableCell>{assignment.teacherName}</TableCell>
+                      <TableCell>{assignment.subjectName}</TableCell>
+                      <TableCell>{assignment.groupCode}</TableCell>
+                      <TableCell>{DAYS_OF_WEEK[assignment.dayOfWeek - 1] ?? assignment.dayOfWeek}</TableCell>
+                      <TableCell>{`${assignment.period} · ${assignment.startTime.slice(0, 5)}-${assignment.endTime.slice(0, 5)}`}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            {timetableImportResult.assignments.length > 80 ? (
+              <Typography variant="caption" color="text.secondary">
+                Mostrando 80 de {timetableImportResult.assignments.length} clases detectadas.
+              </Typography>
+            ) : null}
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={() => confirmTimetableImportMutation.mutate()}
+                disabled={!schoolYearId || confirmTimetableImportMutation.isPending}
+              >
+                {confirmTimetableImportMutation.isPending ? 'Importando...' : 'Confirmar importación'}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Revisa la muestra antes de confirmar. La importación creará datos faltantes y omitirá choques de horario existentes.
+              </Typography>
+            </Stack>
+            {timetableImportApplyResult ? (
+              <Alert severity="success">
+                {timetableImportApplyResult.message} Contraseña temporal para profesores nuevos: {timetableImportApplyResult.defaultTeacherPassword}
+              </Alert>
+            ) : null}
+          </Stack>
+        ) : null}
+      </Stack>
+    </Paper>
+  )
+
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       <Typography variant="h5">Timetable generator</Typography>
@@ -1660,6 +1812,8 @@ const TimetableGeneratorPage = () => {
         </FormControl>
         {isCheckingTimetable || isLoadingClassGroups ? <CircularProgress size={24} /> : null}
       </Stack>
+
+      {renderImportPanel()}
 
       {hasTimetable ? renderExistingTools() : isWizardActive ? renderWizard() : renderWizardLauncher()}
 
