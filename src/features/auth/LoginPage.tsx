@@ -32,9 +32,9 @@ export const LoginPage = () => {
       navigate(redirectPath, { replace: true })
     } catch (error) {
       if (error instanceof ApiError) {
-        setErrorMessage(error.message || 'Unable to log in. Please check your credentials.')
+        setErrorMessage(error.message || 'No se pudo iniciar sesión. Revisa tus credenciales.')
       } else {
-        setErrorMessage('Unexpected error. Please try again.')
+        setErrorMessage('Ocurrió un error inesperado. Intenta de nuevo.')
       }
     } finally {
       setIsSubmitting(false)
@@ -78,7 +78,7 @@ export const LoginPage = () => {
         />
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', fontSize: '0.9rem', color: '#0f172a' }}>
-            National ID
+            Documento de identidad
             <input
               name="nationalId"
               value={nationalId}
@@ -94,7 +94,7 @@ export const LoginPage = () => {
             />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', fontSize: '0.9rem', color: '#0f172a' }}>
-            Password
+            Contraseña
             <input
               type="password"
               name="password"
@@ -129,7 +129,7 @@ export const LoginPage = () => {
               cursor: isBusy ? 'not-allowed' : 'pointer',
             }}
           >
-            {isBusy ? 'Logging in...' : 'Log in'}
+            {isBusy ? 'Iniciando sesión...' : 'Iniciar sesión'}
           </button>
         </form>
       </div>
