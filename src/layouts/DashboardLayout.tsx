@@ -103,15 +103,7 @@ export const DashboardLayout = () => {
 
   const navGroups = useMemo<NavGroup[]>(() => {
     const role = user?.role
-    const groups: NavGroup[] = [
-      {
-        key: 'inicio',
-        label: 'Inicio',
-        icon: <DashboardIcon />,
-        defaultOpen: true,
-        items: [{ label: 'Panel principal', path: '/dashboard', icon: <DashboardIcon /> }],
-      },
-    ]
+    const groups: NavGroup[] = []
 
     if (role === 'admin' || role === 'coordinator') {
       groups.push(
@@ -201,6 +193,8 @@ export const DashboardLayout = () => {
   const isItemActive = (item: NavItem) =>
     location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
 
+  const isDashboardActive = location.pathname === '/dashboard'
+
   const isGroupOpen = (group: NavGroup) =>
     openGroups[group.key] ?? (Boolean(group.defaultOpen) || group.items.some(isItemActive))
 
@@ -213,6 +207,16 @@ export const DashboardLayout = () => {
       </Toolbar>
       <Divider />
       <List>
+        <ListItemButton
+          selected={isDashboardActive}
+          onClick={() => handleNavigate('/dashboard')}
+          sx={{ py: 1.1 }}
+        >
+          <ListItemIcon sx={{ color: isDashboardActive ? 'primary.main' : 'inherit' }}>
+            <DashboardIcon />
+          </ListItemIcon>
+          <ListItemText primary="Inicio" />
+        </ListItemButton>
         {navGroups.map((group) => {
           const groupOpen = isGroupOpen(group)
           return (
