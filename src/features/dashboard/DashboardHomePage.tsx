@@ -8,8 +8,12 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Typography,
 } from '@mui/material'
@@ -20,6 +24,9 @@ import {
   schoolYearsApi,
   type CompleteSchoolYearResult,
 } from '../../api/schoolYearsApi'
+import { classGroupsApi } from '../../api/classGroupsApi'
+import { coursesApi } from '../../api/coursesApi'
+import { dashboardsApi } from '../../api/dashboardsApi'
 import { useAuth } from '../auth/AuthContext'
 import { startOfMonth, toIsoDate } from '../attendance/colombiaCalendar'
 import { AcademicCalendarBoard } from '../calendar/AcademicCalendarBoard'
@@ -35,6 +42,44 @@ const monthTitleFormatter = new Intl.DateTimeFormat('es-CO', {
   year: 'numeric',
 })
 
+const percentFormatter = new Intl.NumberFormat('es-CO', {
+  style: 'percent',
+  maximumFractionDigits: 0,
+})
+
+const decimalFormatter = new Intl.NumberFormat('es-CO', {
+  maximumFractionDigits: 1,
+})
+
+const MetricTile = ({
+  label,
+  value,
+  helper,
+}: {
+  label: string
+  value: string
+  helper: string
+}) => (
+  <Paper
+    variant="outlined"
+    sx={(theme) => ({
+      p: 1.5,
+      borderRadius: 3,
+      backgroundColor: alpha(theme.palette.background.paper, 0.72),
+    })}
+  >
+    <Stack spacing={0.4}>
+      <Typography variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      <Typography variant="h5">{value}</Typography>
+      <Typography variant="caption" color="text.secondary" noWrap>
+        {helper}
+      </Typography>
+    </Stack>
+  </Paper>
+)
+
 export const DashboardHomePage = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -44,6 +89,9 @@ export const DashboardHomePage = () => {
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()))
   const [selectedDate, setSelectedDate] = useState(todayIso)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [metricsGrade, setMetricsGrade] = useState('')
+  const [metricsClassGroupId, setMetricsClassGroupId] = useState('')
+  const [metricsCourseId, setMetricsCourseId] = useState('')
   const [completionResult, setCompletionResult] =
     useState<CompleteSchoolYearResult | null>(null)
   const [completionError, setCompletionError] = useState<string | null>(null)
@@ -56,6 +104,82 @@ export const DashboardHomePage = () => {
 
   const activeYear = activeYears?.[0] ?? null
   const canOpenCalendarPage = user?.role !== 'teacher'
+  const isTeacher = user?.role === 'teacher'
+  const canSeeMetrics = user?.role === 'admin' || user?.role === 'teacher'
+
+  const { data: classGroupsResult } = useQuery({
+    queryKey: ['dashboard-class-groups', activeYear?.schoolYearId],
+    queryFn: () =>
+      classGroupsApi.list({
+        schoolYearId: activeYear?.schoolYearId,
+        page: 1,
+        pageSize: 200,
+      }),
+    enabled: canSeeMetrics && Boolean(activeYear?.schoolYearId),
+    staleTime: 5 * 60_000,
+  })
+
+  const { data: courses } = useQuery({
+    queryKey: ['dashboard-courses', activeYear?.schoolYearId, user?.nationalId, user?.role],
+    queryFn: () =>
+      coursesApi.list({
+        schoolYearId: activeYear?.schoolYearId,
+        teacherId: isTeacher ? user?.nationalId : undefined,
+      }),
+    enabled: canSeeMetrics && Boolean(activeYear?.schoolYearId),
+    staleTime: 5 * 60_000,
+  })
+
+  const classGroups = classGroupsResult?.data ?? []
+  const visibleClassGroups = useMemo(() => {
+    if (!isTeacher) {
+      return classGroups
+    }
+    const allowedIds = new Set((courses ?? []).map((course) => course.classGroupId))
+    return classGroups.filter((group) => allowedIds.has(group.classGroupId))
+  }, [classGroups, courses, isTeacher])
+  const grades = useMemo(
+    () => [...new Set(visibleClassGroups.map((group) => group.gradeLevel))].sort((a, b) => a - b),
+    [visibleClassGroups],
+  )
+
+  const filteredClassGroups = useMemo(() => {
+    const grade = metricsGrade ? Number(metricsGrade) : null
+    return grade ? visibleClassGroups.filter((group) => group.gradeLevel === grade) : visibleClassGroups
+  }, [metricsGrade, visibleClassGroups])
+
+  const filteredCourses = useMemo(() => {
+    const grade = metricsGrade ? Number(metricsGrade) : null
+    const classGroupId = metricsClassGroupId ? Number(metricsClassGroupId) : null
+    return (courses ?? []).filter((course) => {
+      if (grade && course.gradeLevel !== grade) {
+        return false
+      }
+      if (classGroupId && course.classGroupId !== classGroupId) {
+        return false
+      }
+      return true
+    })
+  }, [courses, metricsClassGroupId, metricsGrade])
+
+  const { data: metrics, isLoading: isLoadingMetrics } = useQuery({
+    queryKey: [
+      'dashboard-metrics',
+      activeYear?.schoolYearId,
+      user?.role,
+      metricsGrade,
+      metricsClassGroupId,
+      metricsCourseId,
+    ],
+    queryFn: () =>
+      dashboardsApi.metrics({
+        schoolYearId: activeYear?.schoolYearId,
+        gradeLevel: metricsGrade ? Number(metricsGrade) : undefined,
+        classGroupId: metricsClassGroupId ? Number(metricsClassGroupId) : undefined,
+        courseId: metricsCourseId ? Number(metricsCourseId) : undefined,
+      }),
+    enabled: canSeeMetrics && Boolean(activeYear?.schoolYearId),
+  })
 
   const { items: calendarItems } = useAcademicCalendarData({
     schoolYear: activeYear,
@@ -136,7 +260,7 @@ export const DashboardHomePage = () => {
           Activa un año escolar para mostrar el calendario del dashboard.
         </Alert>
       ) : (
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'stretch' }}>
           <Box
             component="button"
             type="button"
@@ -220,6 +344,147 @@ export const DashboardHomePage = () => {
               </Typography>
             </Stack>
           </Box>
+
+          {canSeeMetrics ? (
+            <Paper
+              variant="outlined"
+              sx={(theme) => ({
+                flex: '1 1 520px',
+                minWidth: { xs: '100%', md: 520 },
+                p: 2.25,
+                borderRadius: 4,
+                borderColor: alpha(theme.palette.divider, 0.8),
+                background: `linear-gradient(165deg, ${alpha(theme.palette.success.main, 0.12)} 0%, ${alpha(
+                  theme.palette.background.paper,
+                  0.98,
+                )} 54%)`,
+              })}
+            >
+              <Stack spacing={2}>
+                <Stack spacing={0.4}>
+                  <Typography variant="overline" color="text.secondary">
+                    Métricas
+                  </Typography>
+                  <Typography variant="h6">
+                    {isTeacher ? 'Mis cursos' : 'Seguimiento académico'}
+                  </Typography>
+                </Stack>
+
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1}>
+                  <FormControl size="small" sx={{ minWidth: 120 }}>
+                    <InputLabel id="dashboard-grade-filter">Grado</InputLabel>
+                    <Select
+                      labelId="dashboard-grade-filter"
+                      label="Grado"
+                      value={metricsGrade}
+                      onChange={(event) => {
+                        setMetricsGrade(event.target.value)
+                        setMetricsClassGroupId('')
+                        setMetricsCourseId('')
+                      }}
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {grades.map((grade) => (
+                        <MenuItem key={grade} value={String(grade)}>
+                          Grado {grade}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 150 }}>
+                    <InputLabel id="dashboard-group-filter">Grupo</InputLabel>
+                    <Select
+                      labelId="dashboard-group-filter"
+                      label="Grupo"
+                      value={metricsClassGroupId}
+                      onChange={(event) => {
+                        setMetricsClassGroupId(event.target.value)
+                        setMetricsCourseId('')
+                      }}
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {filteredClassGroups.map((group) => (
+                        <MenuItem key={group.classGroupId} value={String(group.classGroupId)}>
+                          {group.gradeLevel}{group.section}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 220, flex: 1 }}>
+                    <InputLabel id="dashboard-course-filter">Curso</InputLabel>
+                    <Select
+                      labelId="dashboard-course-filter"
+                      label="Curso"
+                      value={metricsCourseId}
+                      onChange={(event) => setMetricsCourseId(event.target.value)}
+                    >
+                      <MenuItem value="">Todos</MenuItem>
+                      {filteredCourses.map((course) => (
+                        <MenuItem key={course.courseId} value={String(course.courseId)}>
+                          {course.subjectName} · {course.gradeLevel}{course.section}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Stack>
+
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
+                    gap: 1,
+                  }}
+                >
+                  <MetricTile
+                    label="Asistencia"
+                    value={metrics ? percentFormatter.format(1 - metrics.attendance.absenceRate) : '...'}
+                    helper={`${metrics?.attendance.present ?? 0}/${metrics?.attendance.total ?? 0} presentes`}
+                  />
+                  <MetricTile
+                    label="Ausencia"
+                    value={metrics ? percentFormatter.format(metrics.attendance.absenceRate) : '...'}
+                    helper={`${(metrics?.attendance.absent ?? 0) + (metrics?.attendance.excused ?? 0)} registros`}
+                  />
+                  <MetricTile
+                    label="Promedio"
+                    value={metrics ? decimalFormatter.format(metrics.academic.average) : '...'}
+                    helper={`${metrics?.academic.low ?? 0} en bajo`}
+                  />
+                </Box>
+
+                {isLoadingMetrics ? (
+                  <Typography variant="body2" color="text.secondary">
+                    Cargando métricas...
+                  </Typography>
+                ) : metrics?.academic.total === 0 && metrics?.attendance.total === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No hay registros para los filtros seleccionados.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    <Typography variant="overline" color="text.secondary">
+                      Rendimiento por curso
+                    </Typography>
+                    {(metrics?.academic.byCourse ?? []).slice(0, 4).map((course) => (
+                      <Stack key={course.courseId} direction="row" justifyContent="space-between" spacing={1}>
+                        <Typography variant="body2" noWrap>
+                          {course.label}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {decimalFormatter.format(course.average)} · {percentFormatter.format(course.lowRate)} bajo
+                        </Typography>
+                      </Stack>
+                    ))}
+                    {isTeacher && (metrics?.academic.bySubject.length ?? 0) > 0 ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Global: {metrics?.academic.bySubject.map((item) => `${item.label} ${decimalFormatter.format(item.average)}`).join(' · ')}
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                )}
+              </Stack>
+            </Paper>
+          ) : null}
         </Box>
       )}
 
