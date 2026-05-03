@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="SCM">
+  <text
+    x="90"
+    y="94"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    fill="#2563eb"
+    font-family="Museo Sans, MuseoSans, Avenir Next, Avenir, system-ui, sans-serif"
+    font-size="86"
+    font-weight="800"
+    letter-spacing="7"
+    transform="scale(1 1.18)"
+    transform-origin="90px 90px"
+  >SCM</text>
+</svg>

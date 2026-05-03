@@ -22,16 +22,12 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  SvgIcon,
   TextField,
   Typography,
 } from '@mui/material'
-import { Add as AddIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material'
+import { alpha } from '@mui/material/styles'
+import { Add as AddIcon, CheckCircle as CheckCircleIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { buildingsApi, type Building } from '../../api/buildingsApi'
 import {
@@ -73,6 +69,13 @@ type ClassroomFormState = {
   capacity: number
 }
 
+type BulkClassroomFormState = {
+  prefix: string
+  quantity: number
+  capacity: number
+  startNumber: number
+}
+
 const sanitizeBuildingName = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '')
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -104,14 +107,152 @@ const buildClassroomName = (buildingName: string, classrooms: Classroom[]) => {
   return `${prefix}_Aula${String(next).padStart(2, '0')}`
 }
 
+const buildBulkClassroomNames = ({ prefix, quantity, startNumber }: BulkClassroomFormState) => {
+  const safeQuantity = Number.isFinite(quantity) ? Math.max(0, Math.floor(quantity)) : 0
+  const safeStart = Number.isFinite(startNumber) ? Math.max(0, Math.floor(startNumber)) : 0
+  return Array.from({ length: safeQuantity }, (_, index) => `${prefix}${safeStart + index}`)
+}
+
+const BuildingSvg = () => (
+  <SvgIcon viewBox="0 0 64 64" sx={{ fontSize: 58 }}>
+    <path
+      d="M14 55V15c0-2.2 1.8-4 4-4h28c2.2 0 4 1.8 4 4v40"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinejoin="round"
+    />
+    <path d="M8 55h48" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+    <path
+      d="M22 21h6M36 21h6M22 31h6M36 31h6M22 41h6M36 41h6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="4"
+      strokeLinecap="round"
+    />
+  </SvgIcon>
+)
+
+const BuildingCard = ({
+  building,
+  selected,
+  classroomCount,
+  onClick,
+}: {
+  building: Building
+  selected: boolean
+  classroomCount: number
+  onClick: () => void
+}) => (
+  <Paper
+    component="button"
+    type="button"
+    onClick={onClick}
+    variant="outlined"
+    sx={(theme) => ({
+      position: 'relative',
+      minHeight: 190,
+      p: 2.25,
+      borderRadius: 3,
+      borderWidth: selected ? 2 : 1,
+      borderColor: selected ? 'primary.main' : 'divider',
+      bgcolor: selected
+        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.08)
+        : 'background.paper',
+      color: selected ? 'primary.main' : 'text.primary',
+      cursor: 'pointer',
+      textAlign: 'center',
+      transition: 'border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background-color 140ms ease',
+      boxShadow: selected ? `0 0 0 4px ${alpha(theme.palette.primary.main, 0.16)}` : 'none',
+      '&:hover': {
+        transform: 'translateY(-2px)',
+        borderColor: 'primary.main',
+        boxShadow: `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.32 : 0.12)}`,
+      },
+    })}
+  >
+    {selected ? (
+      <CheckCircleIcon
+        color="primary"
+        sx={{ position: 'absolute', top: 12, right: 12, fontSize: 22 }}
+      />
+    ) : null}
+    <Stack alignItems="center" justifyContent="center" spacing={1.5} sx={{ height: '100%' }}>
+      <BuildingSvg />
+      <Stack spacing={0.5} alignItems="center">
+        <Typography variant="h6">{building.name}</Typography>
+        <Chip
+          size="small"
+          color={selected ? 'primary' : 'default'}
+          label={`${classroomCount} ${classroomCount === 1 ? 'aula' : 'aulas'}`}
+        />
+      </Stack>
+    </Stack>
+  </Paper>
+)
+
+const ClassroomCard = ({
+  classroom,
+  selectedBuildingName,
+  canManage,
+  onEdit,
+  onDelete,
+}: {
+  classroom: Classroom
+  selectedBuildingName?: string
+  canManage: boolean
+  onEdit: (classroom: Classroom) => void
+  onDelete: (classroomId: number) => void
+}) => (
+  <Paper
+    variant="outlined"
+    sx={(theme) => ({
+      p: 2,
+      borderRadius: 3,
+      bgcolor: alpha(theme.palette.background.paper, 0.9),
+      borderColor: alpha(theme.palette.divider, 0.9),
+    })}
+  >
+    <Stack spacing={1.5}>
+      <Stack direction="row" alignItems="flex-start" spacing={1}>
+        <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+          <Typography variant="h6" noWrap>
+            {classroom.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {selectedBuildingName ?? classroom.building?.name ?? 'Sin edificio'}
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={0.5}>
+          <IconButton size="small" onClick={() => onEdit(classroom)} disabled={!canManage}>
+            <EditIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => onDelete(classroom.classroomId)}
+            disabled={!canManage}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Stack>
+      </Stack>
+      <Chip
+        size="small"
+        color="primary"
+        variant="outlined"
+        label={`Capacidad ${classroom.capacity}`}
+        sx={{ alignSelf: 'flex-start' }}
+      />
+    </Stack>
+  </Paper>
+)
+
 export const ClassroomsPage = () => {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
-
-  if (user?.role === 'teacher') {
-    return <Alert severity="info">Aulas no están disponibles para docentes.</Alert>
-  }
+  const isTeacher = user?.role === 'teacher'
   const [activeView, setActiveView] = useState<'buildings' | 'assign'>('buildings')
   const [buildingSearch, setBuildingSearch] = useState('')
   const [classroomSearch, setClassroomSearch] = useState('')
@@ -131,6 +272,13 @@ export const ClassroomsPage = () => {
     buildingId: '',
     capacity: 0,
   })
+  const [bulkClassroomForm, setBulkClassroomForm] = useState<BulkClassroomFormState>({
+    prefix: 'A-',
+    quantity: 5,
+    capacity: 30,
+    startNumber: 101,
+  })
+  const [bulkClassroomError, setBulkClassroomError] = useState<string | null>(null)
   const [classroomError, setClassroomError] = useState<string | null>(null)
   const [assignMode, setAssignMode] = useState<'create' | 'edit'>('create')
   const [assignGrade, setAssignGrade] = useState(1)
@@ -146,7 +294,7 @@ export const ClassroomsPage = () => {
   const { data: buildingsResult, isLoading: isLoadingBuildings, isError: isBuildingsError, error: buildingsError } =
     useBuildingsQuery({ q: buildingSearch })
 
-  const buildings = buildingsResult?.data ?? []
+  const buildings = useMemo(() => buildingsResult?.data ?? [], [buildingsResult?.data])
   const selectedBuilding = useMemo(
     () => buildings.find((building) => building.buildingId === selectedBuildingId) ?? null,
     [buildings, selectedBuildingId],
@@ -155,7 +303,26 @@ export const ClassroomsPage = () => {
   const { data: classroomsResult, isLoading: isLoadingClassrooms, isError: isClassroomsError, error: classroomsError } =
     useClassroomsQuery({ q: classroomSearch, buildingId: selectedBuildingId })
 
-  const classroomList = classroomsResult?.data ?? []
+  const classroomList = useMemo(() => classroomsResult?.data ?? [], [classroomsResult?.data])
+
+  const { data: allClassroomsResult } = useClassroomsQuery({ q: '', buildingId: null })
+  const allClassrooms = useMemo(() => allClassroomsResult?.data ?? [], [allClassroomsResult?.data])
+
+  const classroomCountsByBuilding = useMemo(() => {
+    const counts = new Map<number, number>()
+    allClassrooms.forEach((room) => {
+      const buildingId = room.buildingId ?? room.building?.buildingId ?? null
+      if (buildingId) {
+        counts.set(buildingId, (counts.get(buildingId) ?? 0) + 1)
+      }
+    })
+    return counts
+  }, [allClassrooms])
+
+  const bulkClassroomPreview = useMemo(
+    () => buildBulkClassroomNames(bulkClassroomForm).slice(0, 12),
+    [bulkClassroomForm],
+  )
 
   const { data: activeYears } = useQuery({
     queryKey: ['school-years', { active: true }],
@@ -175,7 +342,7 @@ export const ClassroomsPage = () => {
     enabled: activeView === 'assign' && Boolean(activeYear?.schoolYearId),
   })
 
-  const classGroups = classGroupsResult?.data ?? []
+  const classGroups = useMemo(() => classGroupsResult?.data ?? [], [classGroupsResult?.data])
 
   const usedClassroomIds = useMemo(() => {
     const used = new Set<number>()
@@ -226,6 +393,7 @@ export const ClassroomsPage = () => {
       return
     }
     if (assignBuildingId === null && assignBuildings.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAssignBuildingId(assignBuildings[0].buildingId)
     }
   }, [activeView, allowAllBuildings, assignBuildingId, assignBuildings])
@@ -243,7 +411,7 @@ export const ClassroomsPage = () => {
       (allowAllBuildings || assignBuildingId !== null),
   })
 
-  const assignClassrooms = assignClassroomsResult?.data ?? []
+  const assignClassrooms = useMemo(() => assignClassroomsResult?.data ?? [], [assignClassroomsResult?.data])
 
   const availableClassrooms = useMemo(() => {
     if (assignMode === 'edit' && selectedGroup?.defaultClassroomId) {
@@ -274,7 +442,7 @@ export const ClassroomsPage = () => {
     enabled: activeView === 'assign' && Boolean(activeYear?.schoolYearId),
   })
 
-  const enrollmentList = enrollmentsResult?.data ?? []
+  const enrollmentList = useMemo(() => enrollmentsResult?.data ?? [], [enrollmentsResult?.data])
   const unassignedStats = useMemo(() => {
     const stats = {
       total: enrollmentList.length,
@@ -329,18 +497,21 @@ export const ClassroomsPage = () => {
   )
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedEnrollmentIds([])
     setAssignmentError(null)
     setAssignmentResult(null)
   }, [assignGrade, activeYear?.schoolYearId, assignMode])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAssignClassroomId(null)
   }, [assignBuildingId, allowAllBuildings])
 
   useEffect(() => {
     const options = assignMode === 'edit' ? existingSections : availableSections
     if (!options.includes(assignSection)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAssignSection(options[0] ?? '')
     }
   }, [assignMode, existingSections, availableSections, assignSection])
@@ -350,6 +521,7 @@ export const ClassroomsPage = () => {
       return
     }
     if (selectedGroup?.defaultClassroomId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAssignClassroomId(Number(selectedGroup.defaultClassroomId))
     }
   }, [assignMode, selectedGroup])
@@ -453,6 +625,23 @@ export const ClassroomsPage = () => {
     },
     onError: (error) => {
       setClassroomError(error instanceof Error ? error.message : 'No se pudo guardar el aula.')
+    },
+  })
+
+  const createBulkClassroomsMutation = useMutation({
+    mutationFn: async (payloads: CreateClassroomPayload[]) => {
+      const created: Classroom[] = []
+      for (const payload of payloads) {
+        created.push(await classroomsApi.create(payload))
+      }
+      return created
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['classrooms'] })
+      setBulkClassroomError(null)
+    },
+    onError: (error) => {
+      setBulkClassroomError(error instanceof Error ? error.message : 'No se pudieron generar las aulas.')
     },
   })
 
@@ -638,6 +827,48 @@ export const ClassroomsPage = () => {
     deleteClassroomMutation.mutate(classroomId)
   }
 
+  const handleCreateBulkClassrooms = () => {
+    if (!selectedBuildingId) {
+      setBulkClassroomError('Selecciona un edificio para generar aulas.')
+      return
+    }
+    const prefix = bulkClassroomForm.prefix.trim()
+    const quantity = Math.floor(Number(bulkClassroomForm.quantity))
+    const capacity = Math.floor(Number(bulkClassroomForm.capacity))
+    const startNumber = Math.floor(Number(bulkClassroomForm.startNumber))
+    if (!prefix) {
+      setBulkClassroomError('El prefijo es obligatorio.')
+      return
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setBulkClassroomError('La cantidad debe ser mayor a 0.')
+      return
+    }
+    if (!Number.isFinite(capacity) || capacity <= 0) {
+      setBulkClassroomError('La capacidad debe ser mayor a 0.')
+      return
+    }
+    if (!Number.isFinite(startNumber) || startNumber < 0) {
+      setBulkClassroomError('El número inicial debe ser válido.')
+      return
+    }
+    const names = buildBulkClassroomNames({ prefix, quantity, capacity, startNumber })
+    const existingNames = new Set(classroomList.map((room) => room.name.trim().toLowerCase()))
+    const duplicate = names.find((name) => existingNames.has(name.trim().toLowerCase()))
+    if (duplicate) {
+      setBulkClassroomError(`El aula ${duplicate} ya existe en este edificio.`)
+      return
+    }
+    setBulkClassroomError(null)
+    createBulkClassroomsMutation.mutate(
+      names.map((name) => ({
+        name,
+        buildingId: selectedBuildingId,
+        capacity,
+      })),
+    )
+  }
+
   const buildingSelectOptions = buildings.map((building) => (
     <MenuItem key={building.buildingId} value={building.buildingId}>
       {building.name}
@@ -716,11 +947,16 @@ export const ClassroomsPage = () => {
   const sectionOptionsForMode = assignMode === 'edit' ? existingSections : availableSections
 
   const buildingsView = (
-    <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2}>
-      <Paper sx={{ flexBasis: { md: '32%' }, flexShrink: 0, p: 2 }}>
+    <Stack spacing={2.5}>
+      <Paper sx={{ p: 2.5, borderRadius: 3 }}>
         <Stack spacing={2}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="h5">Edificios</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h5">Áreas / Edificios</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Selecciona un edificio para ver y crear sus aulas.
+              </Typography>
+            </Box>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -735,6 +971,7 @@ export const ClassroomsPage = () => {
             label="Buscar edificio"
             value={buildingSearch}
             onChange={(event) => setBuildingSearch(event.target.value)}
+            fullWidth
           />
 
           {isLoadingBuildings ? (
@@ -744,125 +981,231 @@ export const ClassroomsPage = () => {
             <Alert severity="error">{buildingsError?.message || 'Error cargando edificios.'}</Alert>
           ) : null}
 
-          <List dense sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-            <ListItemButton
-              selected={selectedBuildingId === null}
-              onClick={() => setSelectedBuildingId(null)}
-            >
-              <ListItemText primary="Todos los edificios" />
-            </ListItemButton>
-            {buildings.map((building) => (
-              <ListItemButton
-                key={building.buildingId}
-                selected={building.buildingId === selectedBuildingId}
-                onClick={() => setSelectedBuildingId(building.buildingId)}
-              >
-                <ListItemText primary={building.name} />
-              </ListItemButton>
-            ))}
-          </List>
-        </Stack>
-      </Paper>
-
-      <Paper sx={{ flexGrow: 1, p: 3 }}>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-            <Typography variant="h5">Aulas</Typography>
-            <Box sx={{ flexGrow: 1 }} />
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={openCreateClassroom}
-              disabled={buildings.length === 0 || !canManage}
-            >
-              Nueva aula
-            </Button>
-          </Stack>
-
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              {selectedBuilding ? `Edificio: ${selectedBuilding.name}` : 'Edificio: Todos'}
-            </Typography>
-            {selectedBuilding ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <IconButton size="small" onClick={openEditBuilding} disabled={!canManage}>
-                  <EditIcon fontSize="small" />
-                </IconButton>
-                <IconButton size="small" color="error" onClick={handleDeleteBuilding} disabled={!canManage}>
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
+          {buildings.length === 0 && !isLoadingBuildings ? (
+            <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, textAlign: 'center' }}>
+              <Stack spacing={1.5} alignItems="center">
+                <Typography variant="h6">Primero crea un edificio para poder registrar aulas.</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Los edificios funcionan como áreas físicas donde se organizan las aulas.
+                </Typography>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateBuilding} disabled={!canManage}>
+                  Nuevo edificio
+                </Button>
               </Stack>
-            ) : null}
-          </Stack>
-          {selectedBuilding ? (
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {selectedBuilding.isLab ? <Chip size="small" label="Lab" /> : null}
-              {selectedBuilding.isAuditorium ? <Chip size="small" label="Auditorim" /> : null}
-              {selectedBuilding.isComputerRoom ? <Chip size="small" label="Computer Room" /> : null}
-            </Stack>
-          ) : null}
-
-          <TextField
-            label="Buscar aula"
-            value={classroomSearch}
-            onChange={(event) => setClassroomSearch(event.target.value)}
-          />
-
-          {buildings.length === 0 ? (
-            <Alert severity="info">Primero crea un edificio para poder registrar aulas.</Alert>
-          ) : null}
-
-          {isLoadingClassrooms ? (
-            <Typography color="text.secondary">Cargando aulas…</Typography>
-          ) : null}
-          {isClassroomsError ? (
-            <Alert severity="error">{classroomsError?.message || 'Error cargando aulas.'}</Alert>
-          ) : null}
-
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Nombre</TableCell>
-                  <TableCell>Edificio</TableCell>
-                  <TableCell>Capacidad</TableCell>
-                  <TableCell align="right">Acciones</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {classroomList.map((room) => (
-                  <TableRow key={room.classroomId} hover>
-                    <TableCell>{room.name}</TableCell>
-                    <TableCell>{room.building?.name ?? 'N/A'}</TableCell>
-                    <TableCell>{room.capacity}</TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => openEditClassroom(room)} disabled={!canManage}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteClassroom(room.classroomId)}
-                        disabled={!canManage}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {classroomList.length === 0 && !isLoadingClassrooms ? (
-                  <TableRow>
-                    <TableCell colSpan={4}>
-                      <Typography color="text.secondary">Sin aulas registradas.</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </TableContainer>
+            </Paper>
+          ) : (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                  lg: 'repeat(3, minmax(0, 1fr))',
+                  xl: 'repeat(4, minmax(0, 1fr))',
+                },
+                gap: 2,
+              }}
+            >
+              {buildings.map((building) => (
+                <BuildingCard
+                  key={building.buildingId}
+                  building={building}
+                  selected={building.buildingId === selectedBuildingId}
+                  classroomCount={classroomCountsByBuilding.get(building.buildingId) ?? 0}
+                  onClick={() => setSelectedBuildingId(building.buildingId)}
+                />
+              ))}
+            </Box>
+          )}
         </Stack>
       </Paper>
-    </Box>
+
+      {selectedBuilding ? (
+        <Paper sx={{ p: 2.5, borderRadius: 3 }}>
+          <Stack spacing={2}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Box sx={{ flexGrow: 1 }}>
+                <Typography variant="h5">Aulas de {selectedBuilding.name}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {classroomList.length} {classroomList.length === 1 ? 'aula registrada' : 'aulas registradas'}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Button
+                  variant="outlined"
+                  startIcon={<EditIcon />}
+                  onClick={openEditBuilding}
+                  disabled={!canManage}
+                >
+                  Editar edificio
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleDeleteBuilding}
+                  disabled={!canManage}
+                >
+                  Eliminar
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={openCreateClassroom}
+                  disabled={!canManage}
+                >
+                  Crear aula
+                </Button>
+              </Stack>
+            </Stack>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {selectedBuilding.isLab ? <Chip size="small" label="Laboratorio" /> : null}
+              {selectedBuilding.isAuditorium ? <Chip size="small" label="Auditorio" /> : null}
+              {selectedBuilding.isComputerRoom ? <Chip size="small" label="Sala de sistemas" /> : null}
+            </Stack>
+
+            <TextField
+              label="Buscar aula"
+              value={classroomSearch}
+              onChange={(event) => setClassroomSearch(event.target.value)}
+              fullWidth
+            />
+
+            {isLoadingClassrooms ? (
+              <Typography color="text.secondary">Cargando aulas…</Typography>
+            ) : null}
+            {isClassroomsError ? (
+              <Alert severity="error">{classroomsError?.message || 'Error cargando aulas.'}</Alert>
+            ) : null}
+
+            {classroomList.length === 0 && !isLoadingClassrooms ? (
+              <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, textAlign: 'center' }}>
+                <Stack spacing={1.5} alignItems="center">
+                  <Typography variant="h6">Este edificio aún no tiene aulas.</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Crea la primera aula o genera varias en lote.
+                  </Typography>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateClassroom} disabled={!canManage}>
+                      Crear aula
+                    </Button>
+                    <Button variant="outlined" component="a" href="#bulk-classrooms" disabled={!canManage}>
+                      Crear en lote
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Paper>
+            ) : (
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    md: 'repeat(2, minmax(0, 1fr))',
+                    xl: 'repeat(3, minmax(0, 1fr))',
+                  },
+                  gap: 1.5,
+                }}
+              >
+                {classroomList.map((room) => (
+                  <ClassroomCard
+                    key={room.classroomId}
+                    classroom={room}
+                    selectedBuildingName={selectedBuilding.name}
+                    canManage={canManage}
+                    onEdit={openEditClassroom}
+                    onDelete={handleDeleteClassroom}
+                  />
+                ))}
+              </Box>
+            )}
+
+            <Paper id="bulk-classrooms" variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Stack spacing={2}>
+                <Stack spacing={0.5}>
+                  <Typography variant="h6">Crear aulas en lote</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Genera varias aulas para {selectedBuilding.name} usando un prefijo y numeración consecutiva.
+                  </Typography>
+                </Stack>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+                  <TextField
+                    label="Prefijo"
+                    value={bulkClassroomForm.prefix}
+                    onChange={(event) =>
+                      setBulkClassroomForm((current) => ({ ...current, prefix: event.target.value }))
+                    }
+                    error={!bulkClassroomForm.prefix.trim()}
+                    helperText={!bulkClassroomForm.prefix.trim() ? 'Obligatorio' : 'Ej. A-'}
+                  />
+                  <TextField
+                    label="Número inicial"
+                    type="number"
+                    value={bulkClassroomForm.startNumber}
+                    onChange={(event) =>
+                      setBulkClassroomForm((current) => ({ ...current, startNumber: Number(event.target.value) }))
+                    }
+                    inputProps={{ min: 0 }}
+                  />
+                  <TextField
+                    label="Cantidad"
+                    type="number"
+                    value={bulkClassroomForm.quantity}
+                    onChange={(event) =>
+                      setBulkClassroomForm((current) => ({ ...current, quantity: Number(event.target.value) }))
+                    }
+                    inputProps={{ min: 1 }}
+                    error={bulkClassroomForm.quantity <= 0}
+                  />
+                  <TextField
+                    label="Capacidad por aula"
+                    type="number"
+                    value={bulkClassroomForm.capacity}
+                    onChange={(event) =>
+                      setBulkClassroomForm((current) => ({ ...current, capacity: Number(event.target.value) }))
+                    }
+                    inputProps={{ min: 1 }}
+                    error={bulkClassroomForm.capacity <= 0}
+                  />
+                </Stack>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {bulkClassroomPreview.map((name) => (
+                    <Chip key={name} size="small" label={name} />
+                  ))}
+                  {bulkClassroomForm.quantity > bulkClassroomPreview.length ? (
+                    <Chip size="small" label={`+${bulkClassroomForm.quantity - bulkClassroomPreview.length} más`} />
+                  ) : null}
+                </Stack>
+                {bulkClassroomError ? <Alert severity="error">{bulkClassroomError}</Alert> : null}
+                <Box>
+                  <Button
+                    variant="contained"
+                    onClick={handleCreateBulkClassrooms}
+                    disabled={
+                      !canManage ||
+                      !selectedBuildingId ||
+                      createBulkClassroomsMutation.isPending ||
+                      !bulkClassroomForm.prefix.trim() ||
+                      bulkClassroomForm.quantity <= 0 ||
+                      bulkClassroomForm.capacity <= 0
+                    }
+                  >
+                    {createBulkClassroomsMutation.isPending ? 'Generando…' : 'Generar aulas'}
+                  </Button>
+                </Box>
+              </Stack>
+            </Paper>
+          </Stack>
+        </Paper>
+      ) : buildings.length > 0 ? (
+        <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, textAlign: 'center' }}>
+          <Typography color="text.secondary">
+            Selecciona un edificio para ver sus aulas.
+          </Typography>
+        </Paper>
+      ) : null}
+    </Stack>
   )
 
   const assignView = (
@@ -1238,6 +1581,10 @@ export const ClassroomsPage = () => {
       </Dialog>
     </>
   )
+
+  if (isTeacher) {
+    return <Alert severity="info">Aulas no están disponibles para docentes.</Alert>
+  }
 
   return (
     <Stack spacing={2}>

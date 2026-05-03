@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient'
 import type {
+  ScannedTimetableClassGroup,
   ScannedCurriculumScheduleCurriculum,
   ScannedTimetableAssignment,
 } from './scannerApi'
@@ -93,7 +94,9 @@ export type CurriculumScheduleImportApplyResponse = {
 }
 
 export type CurriculumScheduleImportConfirmPayload = {
+  schoolYearId: number
   scan: {
+    classGroups: ScannedTimetableClassGroup[]
     curricula: ScannedCurriculumScheduleCurriculum[]
     warnings: string[]
   }

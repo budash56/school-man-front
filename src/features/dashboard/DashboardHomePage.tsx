@@ -51,79 +51,6 @@ const decimalFormatter = new Intl.NumberFormat('es-CO', {
   maximumFractionDigits: 1,
 })
 
-const adminModuleGuide = [
-  {
-    title: 'Estudiantes',
-    description: 'Consulta expedientes, datos básicos, matrículas recientes y registros de convivencia.',
-    path: '/dashboard/students',
-  },
-  {
-    title: 'Matrículas',
-    description: 'Inscribe estudiantes en el año activo y asigna grado, grupo y estado académico.',
-    path: '/dashboard/enrollments',
-  },
-  {
-    title: 'Planillas',
-    description: 'Importa planillas institucionales, completa documentos pendientes, revisa notas y finaliza listas.',
-    path: '/dashboard/planillas',
-  },
-  {
-    title: 'Currículo',
-    description: 'Organiza currículos por año, grado, grupo o especialidad y define intensidad por asignatura.',
-    path: '/dashboard/curriculum',
-  },
-  {
-    title: 'Áreas y asignaturas',
-    description: 'Administra áreas académicas, asignaturas y datos base usados por currículo, horarios y notas.',
-    path: '/dashboard/subjects',
-  },
-  {
-    title: 'Calendario',
-    description: 'Configura periodos, eventos institucionales, festivos y fechas visibles para docentes.',
-    path: '/dashboard/calendar',
-  },
-  {
-    title: 'Asistencia',
-    description: 'Revisa asistencia por grupo, clase y fecha; filtra registros para seguimiento administrativo.',
-    path: '/dashboard/attendance',
-  },
-  {
-    title: 'Convivencia',
-    description: 'Registra y consulta observaciones disciplinarias asociadas a estudiantes.',
-    path: '/dashboard/discipline',
-  },
-  {
-    title: 'Documentos',
-    description: 'Genera e imprime documentos escolares desde la información cargada en el sistema.',
-    path: '/dashboard/documents',
-  },
-  {
-    title: 'Horarios',
-    description: 'Importa horarios desde PDF, importa currículo desde horarios de cursos y genera horarios internos.',
-    path: '/dashboard/timetable',
-  },
-  {
-    title: 'Carga docente',
-    description: 'Asigna profesores a cursos, grupos y asignaturas para el año escolar activo.',
-    path: '/dashboard/workload',
-  },
-  {
-    title: 'Años y grupos',
-    description: 'Administra años escolares, grados, grupos y datos base de planeación académica.',
-    path: '/dashboard/class-groups',
-  },
-  {
-    title: 'Aulas',
-    description: 'Gestiona edificios, salones, capacidad y asignación de estudiantes a espacios físicos.',
-    path: '/dashboard/classrooms',
-  },
-  {
-    title: 'Usuarios',
-    description: 'Crea usuarios, administra roles e importa docentes de forma masiva.',
-    path: '/dashboard/users',
-  },
-]
-
 const MetricTile = ({
   label,
   value,
@@ -651,75 +578,33 @@ export const DashboardHomePage = () => {
       </Dialog>
 
       {user?.role === 'admin' ? (
-        <>
-          <Paper sx={{ p: 3, borderRadius: 4 }}>
-            <Stack spacing={2}>
-              <Stack spacing={0.5}>
-                <Typography variant="h6">Guía de módulos</Typography>
-                <Typography color="text.secondary">
-                  Resumen rápido de lo que puedes hacer como administrador.
-                </Typography>
-              </Stack>
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: {
-                    xs: '1fr',
-                    md: 'repeat(2, minmax(0, 1fr))',
-                    xl: 'repeat(3, minmax(0, 1fr))',
-                  },
-                  gap: 1.5,
-                }}
-              >
-                {adminModuleGuide.map((module) => (
-                  <Paper
-                    key={module.path}
-                    variant="outlined"
-                    sx={{ p: 2, borderRadius: 2, display: 'flex', flexDirection: 'column', gap: 1 }}
-                  >
-                    <Typography variant="subtitle1">{module.title}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
-                      {module.description}
-                    </Typography>
-                    <Box>
-                      <Button size="small" onClick={() => navigate(module.path)}>
-                        Abrir
-                      </Button>
-                    </Box>
-                  </Paper>
-                ))}
-              </Box>
-            </Stack>
-          </Paper>
-
-          <Paper sx={{ p: 3, borderRadius: 4 }}>
-            <Stack spacing={2}>
-              <Typography variant="h6">Cierre de año escolar</Typography>
-              <Typography color="text.secondary">
-                Año activo:{' '}
-                {activeYear
-                  ? activeYear.name
-                  : isLoadingYear
-                    ? 'Cargando…'
-                    : 'No hay año activo'}
-              </Typography>
-              <Button
-                variant="contained"
-                onClick={handleCompleteYear}
-                disabled={!activeYear || completeMutation.isPending}
-              >
-                Finalizar año escolar
-              </Button>
-              {completionError ? <Alert severity="error">{completionError}</Alert> : null}
-              {completionResult ? (
-                <Alert severity="success">
-                  Año cerrado. Promovidos: {completionResult.studentsPromoted}. Graduados:{' '}
-                  {completionResult.studentsGraduated}.
-                </Alert>
-              ) : null}
-            </Stack>
-          </Paper>
-        </>
+        <Paper sx={{ p: 3, borderRadius: 4 }}>
+          <Stack spacing={2}>
+            <Typography variant="h6">Cierre de año escolar</Typography>
+            <Typography color="text.secondary">
+              Año activo:{' '}
+              {activeYear
+                ? activeYear.name
+                : isLoadingYear
+                  ? 'Cargando…'
+                  : 'No hay año activo'}
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={handleCompleteYear}
+              disabled={!activeYear || completeMutation.isPending}
+            >
+              Finalizar año escolar
+            </Button>
+            {completionError ? <Alert severity="error">{completionError}</Alert> : null}
+            {completionResult ? (
+              <Alert severity="success">
+                Año cerrado. Promovidos: {completionResult.studentsPromoted}. Graduados:{' '}
+                {completionResult.studentsGraduated}.
+              </Alert>
+            ) : null}
+          </Stack>
+        </Paper>
       ) : null}
     </Box>
   )
