@@ -66,7 +66,7 @@ export const LoginPage = () => {
           style={{
             margin: '0 0 0.75rem',
             textAlign: 'center',
-            color: '#0b2f63',
+            color: '#1d4ed8',
             fontFamily: '"Museo Sans", MuseoSans, "Avenir Next", Avenir, system-ui, sans-serif',
             fontSize: '2.4rem',
             fontWeight: 800,
