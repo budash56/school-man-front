@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import {
   AppBar,
   Box,
+  Collapse,
   Divider,
   Drawer,
   IconButton,
@@ -33,6 +34,8 @@ import {
   TableChart as TableChartIcon,
   ViewWeek as ViewWeekIcon,
   Print as PrintIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -47,6 +50,21 @@ type NavItem = {
   icon: ReactNode
 }
 
+type NavGroup = {
+  key: string
+  label: string
+  icon: ReactNode
+  items: NavItem[]
+  defaultOpen?: boolean
+}
+
+const roleLabels: Record<string, string> = {
+  admin: 'Administrador',
+  coordinator: 'Coordinador',
+  registrar: 'Registro',
+  teacher: 'Profesor',
+}
+
 export const DashboardLayout = () => {
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -54,6 +72,7 @@ export const DashboardLayout = () => {
   const theme = useTheme()
   const { mode, toggleColorMode } = useColorMode()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const isMobile = !isDesktop
 
@@ -73,55 +92,108 @@ export const DashboardLayout = () => {
     navigate('/login', { replace: true })
   }
 
-  const navItems = useMemo<NavItem[]>(() => {
-    const items: NavItem[] = [
-      { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
-      { label: 'Calendar', path: '/dashboard/calendar', icon: <CalendarMonthIcon /> },
-      { label: 'Documentos', path: '/dashboard/documents', icon: <PrintIcon /> },
-      { label: 'Students', path: '/dashboard/students', icon: <PeopleIcon /> },
-      { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
-      { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
-      { label: 'Timetable', path: '/dashboard/timetable', icon: <ViewWeekIcon /> },
-      { label: 'Enrollments', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
-      { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
-      { label: 'School years', path: '/dashboard/class-groups', icon: <ClassIcon /> },
-      { label: 'Discipline', path: '/dashboard/discipline', icon: <GavelIcon /> },
-      { label: user?.role === 'teacher' ? 'Area' : 'Áreas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
-      { label: 'Classrooms', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
+  const navGroups = useMemo<NavGroup[]>(() => {
+    const role = user?.role
+    const groups: NavGroup[] = [
+      {
+        key: 'inicio',
+        label: 'Inicio',
+        icon: <DashboardIcon />,
+        defaultOpen: true,
+        items: [{ label: 'Panel principal', path: '/dashboard', icon: <DashboardIcon /> }],
+      },
     ]
 
-    if (user?.role === 'registrar') {
-      return items.filter((item) =>
-        ['/dashboard/calendar', '/dashboard/documents', '/dashboard/students', '/dashboard/attendance', '/dashboard/planillas'].includes(item.path),
+    if (role === 'admin' || role === 'coordinator') {
+      groups.push(
+        {
+          key: 'academico',
+          label: 'Académico',
+          icon: <SchoolIcon />,
+          items: [
+            { label: 'Estudiantes', path: '/dashboard/students', icon: <PeopleIcon /> },
+            { label: 'Matrículas', path: '/dashboard/enrollments', icon: <SchoolIcon /> },
+            { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
+            { label: 'Currículo', path: '/dashboard/curriculum', icon: <AutoStoriesIcon /> },
+            { label: 'Áreas y asignaturas', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
+          ],
+        },
+        {
+          key: 'operacion',
+          label: 'Operación escolar',
+          icon: <CalendarMonthIcon />,
+          items: [
+            { label: 'Calendario', path: '/dashboard/calendar', icon: <CalendarMonthIcon /> },
+            { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
+            { label: 'Convivencia', path: '/dashboard/discipline', icon: <GavelIcon /> },
+            { label: 'Documentos', path: '/dashboard/documents', icon: <PrintIcon /> },
+          ],
+        },
+        {
+          key: 'planeacion',
+          label: 'Planeación',
+          icon: <ViewWeekIcon />,
+          items: [
+            { label: 'Horarios', path: '/dashboard/timetable', icon: <ViewWeekIcon /> },
+            { label: 'Carga docente', path: '/dashboard/workload', icon: <WorkIcon /> },
+            { label: 'Años y grupos', path: '/dashboard/class-groups', icon: <ClassIcon /> },
+            { label: 'Aulas', path: '/dashboard/classrooms', icon: <MeetingRoomIcon /> },
+          ],
+        },
       )
+      if (role === 'admin') {
+        groups.push({
+          key: 'administracion',
+          label: 'Administración',
+          icon: <ManageAccountsIcon />,
+          items: [{ label: 'Usuarios', path: '/dashboard/users', icon: <ManageAccountsIcon /> }],
+        })
+      }
+      return groups
     }
 
-    if (user?.role === 'teacher') {
-      return items.filter(
-        (item) =>
-          ![
-            '/dashboard/calendar',
-            '/dashboard/documents',
-            '/dashboard/enrollments',
-            '/dashboard/curriculum',
-            '/dashboard/class-groups',
-            '/dashboard/classrooms',
-            '/dashboard/timetable',
-            '/dashboard/workload',
-          ].includes(item.path),
-      )
+    if (role === 'registrar') {
+      groups.push({
+        key: 'registro',
+        label: 'Registro académico',
+        icon: <PrintIcon />,
+        defaultOpen: true,
+        items: [
+          { label: 'Calendario', path: '/dashboard/calendar', icon: <CalendarMonthIcon /> },
+          { label: 'Documentos', path: '/dashboard/documents', icon: <PrintIcon /> },
+          { label: 'Estudiantes', path: '/dashboard/students', icon: <PeopleIcon /> },
+          { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
+          { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
+        ],
+      })
+      return groups
     }
 
-    if (user?.role === 'admin' || user?.role === 'coordinator') {
-      items.push({ label: 'WorkLoad', path: '/dashboard/workload', icon: <WorkIcon /> })
+    if (role === 'teacher') {
+      groups.push({
+        key: 'docente',
+        label: 'Docencia',
+        icon: <MenuBookIcon />,
+        defaultOpen: true,
+        items: [
+          { label: 'Estudiantes', path: '/dashboard/students', icon: <PeopleIcon /> },
+          { label: 'Asistencia', path: '/dashboard/attendance', icon: <EventAvailableIcon /> },
+          { label: 'Planillas', path: '/dashboard/planillas', icon: <TableChartIcon /> },
+          { label: 'Convivencia', path: '/dashboard/discipline', icon: <GavelIcon /> },
+          { label: 'Área', path: '/dashboard/subjects', icon: <MenuBookIcon /> },
+        ],
+      })
+      return groups
     }
 
-    if (user?.role === 'admin') {
-      items.splice(3, 0, { label: 'Usuarios', path: '/dashboard/users', icon: <ManageAccountsIcon /> })
-    }
-
-    return items
+    return groups
   }, [user?.role])
+
+  const isItemActive = (item: NavItem) =>
+    location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+
+  const isGroupOpen = (group: NavGroup) =>
+    openGroups[group.key] ?? (Boolean(group.defaultOpen) || group.items.some(isItemActive))
 
   const drawer = (
     <div>
@@ -132,19 +204,44 @@ export const DashboardLayout = () => {
       </Toolbar>
       <Divider />
       <List>
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+        {navGroups.map((group) => {
+          const groupOpen = isGroupOpen(group)
           return (
-            <ListItemButton
-              key={item.path}
-              selected={isActive}
-              onClick={() => handleNavigate(item.path)}
-            >
-              <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'inherit' }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
+            <Box key={group.key}>
+              <ListItemButton
+                onClick={() =>
+                  setOpenGroups((current) => ({
+                    ...current,
+                    [group.key]: !groupOpen,
+                  }))
+                }
+                sx={{ py: 1.1 }}
+              >
+                <ListItemIcon>{group.icon}</ListItemIcon>
+                <ListItemText primary={group.label} />
+                {groupOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </ListItemButton>
+              <Collapse in={groupOpen} timeout="auto" unmountOnExit>
+                <List disablePadding>
+                  {group.items.map((item) => {
+                    const isActive = isItemActive(item)
+                    return (
+                      <ListItemButton
+                        key={item.path}
+                        selected={isActive}
+                        onClick={() => handleNavigate(item.path)}
+                        sx={{ pl: 4.5, py: 0.9 }}
+                      >
+                        <ListItemIcon sx={{ color: isActive ? 'primary.main' : 'inherit', minWidth: 36 }}>
+                          {item.icon}
+                        </ListItemIcon>
+                        <ListItemText primary={item.label} />
+                      </ListItemButton>
+                    )
+                  })}
+                </List>
+              </Collapse>
+            </Box>
           )
         })}
       </List>
@@ -184,14 +281,14 @@ export const DashboardLayout = () => {
               component="div"
               noWrap
             >
-              SchoolMan {user?.role ? `· ${user.role}` : ''}
+              SchoolMan {user?.role ? `· ${roleLabels[user.role] ?? user.role}` : ''}
             </Typography>
             <Typography
               variant="body2"
               sx={{ opacity: 0.8, display: { xs: 'none', sm: 'block' } }}
               noWrap
             >
-              Coordinator dashboard shell
+              Panel de gestión escolar
             </Typography>
           </Box>
           <IconButton color="inherit" onClick={toggleColorMode} sx={{ mr: { xs: 0, sm: 1 } }}>
@@ -206,10 +303,10 @@ export const DashboardLayout = () => {
             }}
           >
             <Typography variant="subtitle2" noWrap>
-              {user?.firstName || user?.username || 'User'}
+              {user?.firstName || user?.username || 'Usuario'}
             </Typography>
             <Typography variant="caption" noWrap>
-              {user?.role ?? 'role'}
+              {user?.role ? roleLabels[user.role] ?? user.role : 'Rol'}
             </Typography>
           </Box>
           <IconButton color="inherit" onClick={handleLogout}>
