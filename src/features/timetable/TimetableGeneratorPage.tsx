@@ -259,6 +259,7 @@ const TimetableGeneratorPage = () => {
   const [curriculumImportResult, setCurriculumImportResult] = useState<ScannedCurriculumScheduleResponse | null>(null)
   const [curriculumImportError, setCurriculumImportError] = useState<string | null>(null)
   const [curriculumImportApplyResult, setCurriculumImportApplyResult] = useState<CurriculumScheduleImportApplyResponse | null>(null)
+  const [curriculumSpecializationNames, setCurriculumSpecializationNames] = useState<Record<string, string>>({})
 
   const { data: schoolYears } = useSchoolYearsQuery({})
   const queryClient = useQueryClient()
@@ -326,6 +327,36 @@ const TimetableGeneratorPage = () => {
       sessionsPerWeek: '',
     })
   }, [division])
+
+  const curriculumSpecializationTracks = useMemo(() => {
+    const tracks = new Map<string, { trackName: string; grades: number[]; groups: string[] }>()
+    ;(curriculumImportResult?.curricula ?? []).forEach((curriculum) => {
+      if (!curriculum.trackName || ![10, 11].includes(curriculum.gradeLevel)) {
+        return
+      }
+      const existing = tracks.get(curriculum.trackName) ?? {
+        trackName: curriculum.trackName,
+        grades: [],
+        groups: [],
+      }
+      existing.grades.push(curriculum.gradeLevel)
+      existing.groups.push(...curriculum.groupCodes)
+      tracks.set(curriculum.trackName, existing)
+    })
+    return [...tracks.values()].map((track) => ({
+      ...track,
+      grades: [...new Set(track.grades)].sort((a, b) => a - b),
+      groups: [...new Set(track.groups)].sort(),
+    }))
+  }, [curriculumImportResult])
+
+  const missingCurriculumSpecializationNames = useMemo(
+    () =>
+      curriculumSpecializationTracks.filter(
+        (track) => !curriculumSpecializationNames[track.trackName]?.trim(),
+      ),
+    [curriculumSpecializationNames, curriculumSpecializationTracks],
+  )
 
   const schoolYearId = selectedSchoolYearId ? Number(selectedSchoolYearId) || undefined : undefined
   const { data: coursesData } = useQuery({
@@ -546,9 +577,20 @@ const TimetableGeneratorPage = () => {
       setCurriculumImportResult(result)
       setCurriculumImportError(null)
       setCurriculumImportApplyResult(null)
+      const initialNames: Record<string, string> = {}
+      result.curricula.forEach((curriculum) => {
+        if (!curriculum.trackName || ![10, 11].includes(curriculum.gradeLevel)) {
+          return
+        }
+        const scannedName = curriculum.specializationName?.trim()
+        initialNames[curriculum.trackName] =
+          scannedName && scannedName !== curriculum.trackName ? scannedName : ''
+      })
+      setCurriculumSpecializationNames(initialNames)
     },
     onError: (error) => {
       setCurriculumImportResult(null)
+      setCurriculumSpecializationNames({})
       setCurriculumImportError(
         error instanceof ApiError || error instanceof Error
           ? error.message
@@ -562,9 +604,21 @@ const TimetableGeneratorPage = () => {
       if (!curriculumImportResult) {
         throw new Error('Sube un horario de cursos antes de confirmar.')
       }
+      if (missingCurriculumSpecializationNames.length > 0) {
+        throw new Error('Escribe el nombre de cada especialización antes de importar.')
+      }
       return timetableGeneratorApi.confirmCurriculumScheduleImport({
         scan: {
-          curricula: curriculumImportResult.curricula,
+          curricula: curriculumImportResult.curricula.map((curriculum) => {
+            if (!curriculum.trackName || ![10, 11].includes(curriculum.gradeLevel)) {
+              return curriculum
+            }
+            const specializationName = curriculumSpecializationNames[curriculum.trackName]?.trim()
+            return {
+              ...curriculum,
+              specializationName,
+            }
+          }),
           warnings: curriculumImportResult.warnings,
         },
       })
@@ -1903,6 +1957,29 @@ const TimetableGeneratorPage = () => {
               <Chip label={`${curriculumImportResult.curricula.length} currículos`} />
               <Chip label={`${curriculumImportResult.sessions.length} sesiones`} />
             </Stack>
+            {curriculumSpecializationTracks.length > 0 ? (
+              <Stack spacing={1.5}>
+                <Typography variant="subtitle2">Especializaciones</Typography>
+                <Stack spacing={1}>
+                  {curriculumSpecializationTracks.map((track) => (
+                    <TextField
+                      key={track.trackName}
+                      label={`Especialización ${track.trackName}`}
+                      value={curriculumSpecializationNames[track.trackName] ?? ''}
+                      onChange={(event) =>
+                        setCurriculumSpecializationNames((current) => ({
+                          ...current,
+                          [track.trackName]: event.target.value,
+                        }))
+                      }
+                      helperText={`Grados ${track.grades.join(' y ')} · grupos ${track.groups.join(', ')}`}
+                      size="small"
+                      fullWidth
+                    />
+                  ))}
+                </Stack>
+              </Stack>
+            ) : null}
             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 320 }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -1918,7 +1995,11 @@ const TimetableGeneratorPage = () => {
                   {curriculumImportResult.curricula.map((curriculum) => (
                     <TableRow key={`${curriculum.gradeLevel}-${curriculum.trackName ?? 'base'}`}>
                       <TableCell>{curriculum.gradeLevel}</TableCell>
-                      <TableCell>{curriculum.trackName ?? '-'}</TableCell>
+                      <TableCell>
+                        {curriculum.trackName
+                          ? (curriculumSpecializationNames[curriculum.trackName]?.trim() || curriculum.trackName)
+                          : '-'}
+                      </TableCell>
                       <TableCell>{curriculum.groupCodes.join(', ')}</TableCell>
                       <TableCell>{curriculum.weeklyHours}</TableCell>
                       <TableCell>
@@ -1934,12 +2015,16 @@ const TimetableGeneratorPage = () => {
                 variant="contained"
                 color="warning"
                 onClick={() => confirmCurriculumScheduleImportMutation.mutate()}
-                disabled={confirmCurriculumScheduleImportMutation.isPending || curriculumImportResult.warnings.length > 0}
+                disabled={
+                  confirmCurriculumScheduleImportMutation.isPending ||
+                  curriculumImportResult.warnings.length > 0 ||
+                  missingCurriculumSpecializationNames.length > 0
+                }
               >
                 {confirmCurriculumScheduleImportMutation.isPending ? 'Importando...' : 'Confirmar currículo'}
               </Button>
               <Typography variant="caption" color="text.secondary">
-                Si hay advertencias, corrige el PDF o la normalización antes de confirmar.
+                Si hay advertencias o especializaciones sin nombre, corrige la información antes de confirmar.
               </Typography>
             </Stack>
             {curriculumImportApplyResult ? (
