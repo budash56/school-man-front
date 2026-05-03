@@ -28,6 +28,10 @@ export type ChangePasswordPayload = {
   newPassword: string
 }
 
+export type UpdateProfilePayload = {
+  email: string | null
+}
+
 export const authApi = {
   login(payload: LoginPayload) {
     return apiClient.post<AuthResponse>('/auth/login', payload)
@@ -37,5 +41,8 @@ export const authApi = {
   },
   changePassword(payload: ChangePasswordPayload) {
     return apiClient.post<{ updated: true }>('/auth/change-password', payload)
+  },
+  updateProfile(payload: UpdateProfilePayload) {
+    return apiClient.patch<SanitizedUser>('/auth/profile', payload)
   },
 }

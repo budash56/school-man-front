@@ -21,6 +21,7 @@ import PlanillasPage from './features/planillas/PlanillasPage'
 import CalendarPage from './features/calendar/CalendarPage'
 import DocumentsPage from './features/documents/DocumentsPage'
 import TimetableGeneratorPage from './features/timetable/TimetableGeneratorPage'
+import { AccountPage } from './features/account/AccountPage'
 
 function DashboardIndexPage() {
   return <DashboardHomePage />
@@ -34,6 +35,7 @@ function App() {
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
           <Route index element={<DashboardIndexPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="students" element={<StudentsPage />} />
           <Route path="students/:studentId" element={<StudentDetailPage />} />
           <Route path="attendance" element={<AttendancePage />} />

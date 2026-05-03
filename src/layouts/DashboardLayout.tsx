@@ -10,6 +10,8 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Toolbar,
   Typography,
   useMediaQuery,
@@ -73,6 +75,7 @@ export const DashboardLayout = () => {
   const { mode, toggleColorMode } = useColorMode()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [accountMenuAnchor, setAccountMenuAnchor] = useState<HTMLElement | null>(null)
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'))
   const isMobile = !isDesktop
 
@@ -88,8 +91,14 @@ export const DashboardLayout = () => {
   }
 
   const handleLogout = () => {
+    setAccountMenuAnchor(null)
     logout()
     navigate('/login', { replace: true })
+  }
+
+  const handleOpenAccount = () => {
+    setAccountMenuAnchor(null)
+    navigate('/dashboard/account')
   }
 
   const navGroups = useMemo<NavGroup[]>(() => {
@@ -295,11 +304,20 @@ export const DashboardLayout = () => {
             {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
           </IconButton>
           <Box
+            component="button"
+            type="button"
+            aria-label="Abrir opciones de cuenta"
+            onClick={(event) => setAccountMenuAnchor(event.currentTarget)}
             sx={{
               textAlign: 'right',
               mr: { xs: 0.5, sm: 2 },
               minWidth: 0,
               display: { xs: 'none', sm: 'block' },
+              color: 'inherit',
+              border: 0,
+              background: 'transparent',
+              cursor: 'pointer',
+              p: 0,
             }}
           >
             <Typography variant="subtitle2" noWrap>
@@ -309,6 +327,16 @@ export const DashboardLayout = () => {
               {user?.role ? roleLabels[user.role] ?? user.role : 'Rol'}
             </Typography>
           </Box>
+          <Menu
+            anchorEl={accountMenuAnchor}
+            open={Boolean(accountMenuAnchor)}
+            onClose={() => setAccountMenuAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          >
+            <MenuItem onClick={handleOpenAccount}>Mi cuenta</MenuItem>
+            <MenuItem onClick={handleLogout}>Cerrar sesión</MenuItem>
+          </Menu>
           <IconButton color="inherit" onClick={handleLogout}>
             <LogoutIcon />
           </IconButton>
