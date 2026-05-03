@@ -62,20 +62,32 @@ export const LoginPage = () => {
           boxShadow: '0 10px 30px rgba(15, 23, 42, 0.1)',
         }}
       >
-        <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem', textAlign: 'center' }}>
-          SchoolMan
-        </h1>
-        <img
-          src="/schoolman-login-logo.png"
-          alt="SCM-R"
+        <h1
           style={{
-            display: 'block',
-            width: '100%',
-            maxWidth: '320px',
-            height: 'auto',
-            margin: '0 auto 2rem',
+            margin: '0 0 0.75rem',
+            textAlign: 'center',
+            color: '#0b2f63',
+            fontFamily: '"Museo Sans", MuseoSans, "Avenir Next", Avenir, system-ui, sans-serif',
+            fontSize: '2.4rem',
+            fontWeight: 800,
+            letterSpacing: '0',
+            lineHeight: 1.05,
           }}
-        />
+        >
+          SchoolMan-R
+        </h1>
+        <p
+          style={{
+            margin: '0 0 2rem',
+            textAlign: 'center',
+            color: '#475569',
+            fontSize: '0.95rem',
+            lineHeight: 1.45,
+          }}
+        >
+          Plataforma institucional para gestionar información académica, asistencia,
+          planillas y procesos escolares.
+        </p>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', fontSize: '0.9rem', color: '#0f172a' }}>
             Documento de identidad
