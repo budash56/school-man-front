@@ -39,6 +39,7 @@ import {
   type TeacherConstraintDto,
   type TimetableApplyResponse,
   type TimetableAssignment,
+  type CurriculumScheduleImportApplyResponse,
   type TimetableImportApplyResponse,
   type TimetablePreviewResponse,
 } from '../../api/timetableGeneratorApi'
@@ -46,7 +47,7 @@ import { professorsApi } from '../../api/professorsApi'
 import { timetableSlotsApi } from '../../api/timetableSlotsApi'
 import { timetableAssignmentsApi } from '../../api/timetableAssignmentsApi'
 import { coursesApi, type CourseSummary } from '../../api/coursesApi'
-import { scannerApi, type ScannedTimetableResponse } from '../../api/scannerApi'
+import { scannerApi, type ScannedCurriculumScheduleResponse, type ScannedTimetableResponse } from '../../api/scannerApi'
 
 const CREATE_DEFAULT_WEEKLY_CAP = 25
 const DAYS_OF_WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -255,6 +256,9 @@ const TimetableGeneratorPage = () => {
   const [timetableImportResult, setTimetableImportResult] = useState<ScannedTimetableResponse | null>(null)
   const [timetableImportError, setTimetableImportError] = useState<string | null>(null)
   const [timetableImportApplyResult, setTimetableImportApplyResult] = useState<TimetableImportApplyResponse | null>(null)
+  const [curriculumImportResult, setCurriculumImportResult] = useState<ScannedCurriculumScheduleResponse | null>(null)
+  const [curriculumImportError, setCurriculumImportError] = useState<string | null>(null)
+  const [curriculumImportApplyResult, setCurriculumImportApplyResult] = useState<CurriculumScheduleImportApplyResponse | null>(null)
 
   const { data: schoolYears } = useSchoolYearsQuery({})
   const queryClient = useQueryClient()
@@ -533,6 +537,43 @@ const TimetableGeneratorPage = () => {
     },
     onError: (error) => {
       setTimetableImportError(formatTimetableImportError(error))
+    },
+  })
+
+  const scanCurriculumScheduleMutation = useMutation({
+    mutationFn: (file: File) => scannerApi.scanCurriculumSchedule(file),
+    onSuccess: (result) => {
+      setCurriculumImportResult(result)
+      setCurriculumImportError(null)
+      setCurriculumImportApplyResult(null)
+    },
+    onError: (error) => {
+      setCurriculumImportResult(null)
+      setCurriculumImportError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : 'No se pudo leer el currículo.',
+      )
+    },
+  })
+
+  const confirmCurriculumScheduleImportMutation = useMutation({
+    mutationFn: () => {
+      if (!curriculumImportResult) {
+        throw new Error('Sube un horario de cursos antes de confirmar.')
+      }
+      return timetableGeneratorApi.confirmCurriculumScheduleImport({
+        scan: curriculumImportResult,
+      })
+    },
+    onSuccess: (result) => {
+      setCurriculumImportApplyResult(result)
+      setCurriculumImportError(null)
+      queryClient.invalidateQueries({ queryKey: ['curricula'] })
+      queryClient.invalidateQueries({ queryKey: ['subjects'] })
+    },
+    onError: (error) => {
+      setCurriculumImportError(formatTimetableImportError(error))
     },
   })
 
@@ -1813,6 +1854,100 @@ const TimetableGeneratorPage = () => {
     </Paper>
   )
 
+  const renderCurriculumImportPanel = () => (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Stack spacing={2}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+          <Box>
+            <Typography variant="h6">Importar currículo desde horario de cursos</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Sube el horario por grupos para detectar asignaturas e intensidades. Ignora profesores y cuenta dobles sesiones antes de confirmar.
+            </Typography>
+          </Box>
+          <Box>
+            <Button component="label" variant="outlined" disabled={scanCurriculumScheduleMutation.isPending}>
+              {scanCurriculumScheduleMutation.isPending ? 'Leyendo PDF...' : 'Subir PDF'}
+              <input
+                hidden
+                type="file"
+                accept="application/pdf"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) {
+                    scanCurriculumScheduleMutation.mutate(file)
+                  }
+                }}
+              />
+            </Button>
+          </Box>
+        </Stack>
+
+        {curriculumImportError ? (
+          <Alert severity="error" sx={{ whiteSpace: 'pre-line' }}>{curriculumImportError}</Alert>
+        ) : null}
+        {curriculumImportResult ? (
+          <Stack spacing={2}>
+            <Alert severity="info">{curriculumImportResult.message}</Alert>
+            {curriculumImportResult.warnings.length > 0 ? (
+              <Alert severity="warning" sx={{ whiteSpace: 'pre-line' }}>
+                {curriculumImportResult.warnings.join('\n')}
+              </Alert>
+            ) : null}
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip label={`${curriculumImportResult.classGroups.length} grupos`} />
+              <Chip label={`${curriculumImportResult.subjects.length} asignaturas`} />
+              <Chip label={`${curriculumImportResult.curricula.length} currículos`} />
+              <Chip label={`${curriculumImportResult.sessions.length} sesiones`} />
+            </Stack>
+            <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 320 }}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Grado</TableCell>
+                    <TableCell>Especialización</TableCell>
+                    <TableCell>Grupos</TableCell>
+                    <TableCell>Horas</TableCell>
+                    <TableCell>Asignaturas</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {curriculumImportResult.curricula.map((curriculum) => (
+                    <TableRow key={`${curriculum.gradeLevel}-${curriculum.trackName ?? 'base'}`}>
+                      <TableCell>{curriculum.gradeLevel}</TableCell>
+                      <TableCell>{curriculum.trackName ?? '-'}</TableCell>
+                      <TableCell>{curriculum.groupCodes.join(', ')}</TableCell>
+                      <TableCell>{curriculum.weeklyHours}</TableCell>
+                      <TableCell>
+                        {curriculum.items.map((item) => `${item.subjectName} (${item.weeklyHours})`).join(', ')}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+              <Button
+                variant="contained"
+                color="warning"
+                onClick={() => confirmCurriculumScheduleImportMutation.mutate()}
+                disabled={confirmCurriculumScheduleImportMutation.isPending || curriculumImportResult.warnings.length > 0}
+              >
+                {confirmCurriculumScheduleImportMutation.isPending ? 'Importando...' : 'Confirmar currículo'}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Si hay advertencias, corrige el PDF o la normalización antes de confirmar.
+              </Typography>
+            </Stack>
+            {curriculumImportApplyResult ? (
+              <Alert severity="success">{curriculumImportApplyResult.message}</Alert>
+            ) : null}
+          </Stack>
+        ) : null}
+      </Stack>
+    </Paper>
+  )
+
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       <Typography variant="h5">Timetable generator</Typography>
@@ -1857,6 +1992,7 @@ const TimetableGeneratorPage = () => {
       </Stack>
 
       {renderImportPanel()}
+      {renderCurriculumImportPanel()}
 
       {hasTimetable ? renderExistingTools() : isWizardActive ? renderWizard() : renderWizardLauncher()}
 
