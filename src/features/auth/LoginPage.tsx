@@ -65,9 +65,17 @@ export const LoginPage = () => {
         <h1 style={{ fontSize: '1.5rem', marginBottom: '1rem', textAlign: 'center' }}>
           SchoolMan
         </h1>
-        <p style={{ marginBottom: '2rem', textAlign: 'center', color: '#475569' }}>
-          Sign in with your national ID and password
-        </p>
+        <img
+          src="/schoolman-login-logo.png"
+          alt="SCM-R"
+          style={{
+            display: 'block',
+            width: '100%',
+            maxWidth: '320px',
+            height: 'auto',
+            margin: '0 auto 2rem',
+          }}
+        />
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', fontSize: '0.9rem', color: '#0f172a' }}>
             National ID
