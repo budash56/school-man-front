@@ -563,7 +563,10 @@ const TimetableGeneratorPage = () => {
         throw new Error('Sube un horario de cursos antes de confirmar.')
       }
       return timetableGeneratorApi.confirmCurriculumScheduleImport({
-        scan: curriculumImportResult,
+        scan: {
+          curricula: curriculumImportResult.curricula,
+          warnings: curriculumImportResult.warnings,
+        },
       })
     },
     onSuccess: (result) => {

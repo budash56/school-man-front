@@ -1,5 +1,8 @@
 import { apiClient } from './apiClient'
-import type { ScannedCurriculumScheduleResponse, ScannedTimetableAssignment } from './scannerApi'
+import type {
+  ScannedCurriculumScheduleCurriculum,
+  ScannedTimetableAssignment,
+} from './scannerApi'
 
 export type PreferredShift = 'any' | 'morning' | 'afternoon'
 
@@ -89,6 +92,13 @@ export type CurriculumScheduleImportApplyResponse = {
   message: string
 }
 
+export type CurriculumScheduleImportConfirmPayload = {
+  scan: {
+    curricula: ScannedCurriculumScheduleCurriculum[]
+    warnings: string[]
+  }
+}
+
 export type TimetableAssignment = {
   assignmentId: string
   courseId: string
@@ -151,7 +161,7 @@ export const timetableGeneratorApi = {
   confirmImport(payload: TimetableImportConfirmPayload) {
     return apiClient.post<TimetableImportApplyResponse>('/timetable/import/confirm', payload)
   },
-  confirmCurriculumScheduleImport(payload: { scan: ScannedCurriculumScheduleResponse }) {
+  confirmCurriculumScheduleImport(payload: CurriculumScheduleImportConfirmPayload) {
     return apiClient.post<CurriculumScheduleImportApplyResponse>(
       '/timetable/import/curriculum-schedule/confirm',
       payload,
