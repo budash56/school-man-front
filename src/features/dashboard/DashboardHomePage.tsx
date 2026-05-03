@@ -480,6 +480,23 @@ export const DashboardHomePage = () => {
                         Global: {metrics?.academic.bySubject.map((item) => `${item.label} ${decimalFormatter.format(item.average)}`).join(' · ')}
                       </Typography>
                     ) : null}
+                    {!isTeacher && (metrics?.academic.byTeacher.length ?? 0) > 0 ? (
+                      <Stack spacing={0.75} sx={{ pt: 0.5 }}>
+                        <Typography variant="overline" color="text.secondary">
+                          Rendimiento por profesor
+                        </Typography>
+                        {(metrics?.academic.byTeacher ?? []).slice(0, 4).map((teacher) => (
+                          <Stack key={teacher.teacherId} direction="row" justifyContent="space-between" spacing={1}>
+                            <Typography variant="body2" noWrap>
+                              {teacher.label}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {decimalFormatter.format(teacher.average)} · {percentFormatter.format(teacher.lowRate)} bajo
+                            </Typography>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    ) : null}
                   </Stack>
                 )}
               </Stack>

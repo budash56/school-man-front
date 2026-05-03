@@ -47,6 +47,13 @@ export type DashboardMetrics = {
         label: string
       }
     >
+    byTeacher: Array<
+      AcademicMetricSummary & {
+        teacherId: string
+        label: string
+        courses: number
+      }
+    >
   }
   teacherCourses: Array<{
     courseId: number
