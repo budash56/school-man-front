@@ -474,7 +474,9 @@ const TimetableGeneratorPage = () => {
       }
       return timetableGeneratorApi.confirmImport({
         schoolYearId,
-        scan: timetableImportResult,
+        scan: {
+          assignments: timetableImportResult.assignments,
+        },
       })
     },
     onSuccess: (result) => {
