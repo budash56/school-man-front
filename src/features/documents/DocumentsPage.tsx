@@ -167,7 +167,12 @@ const DocumentsPage = () => {
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
             <Stack spacing={2}>
-              <Typography variant="h6">Consulta de boletín</Typography>
+              <Box>
+                <Typography variant="h6">Consulta de boletín</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Selecciona estudiante, año y periodos para preparar el boletín académico imprimible.
+                </Typography>
+              </Box>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <TextField
                   select
@@ -341,7 +346,12 @@ const DocumentsPage = () => {
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
             <Stack spacing={2}>
-              <Typography variant="h6">Consulta de promoción y graduación</Typography>
+              <Box>
+                <Typography variant="h6">Consulta de promoción y graduación</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Revisa por grado o grupo qué estudiantes cumplen condiciones de promoción o graduación.
+                </Typography>
+              </Box>
               <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
                 <TextField
                   select

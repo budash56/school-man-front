@@ -340,7 +340,7 @@ export const DashboardHomePage = () => {
               </Stack>
 
               <Typography variant="caption" color="text.secondary">
-                Click para abrir el calendario
+                Selecciona para abrir el calendario
               </Typography>
             </Stack>
           </Box>

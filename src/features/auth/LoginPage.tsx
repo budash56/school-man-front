@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../api/apiClient'
 import { useAuth } from './AuthContext'
+import './LoginPage.css'
 
 type LocationState = {
   from?: {
@@ -42,26 +43,8 @@ export const LoginPage = () => {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem',
-        background: '#f8fafc',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '400px',
-          background: '#ffffff',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 10px 30px rgba(15, 23, 42, 0.1)',
-        }}
-      >
+    <div className="login-page">
+      <div className="login-card">
         <h1
           style={{
             margin: '0 0 0.75rem',

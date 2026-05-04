@@ -13,7 +13,7 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
   if (isLoading) {
     return (
       <div className="route-loading-state">
-        Loading...
+        Cargando...
       </div>
     )
   }

@@ -296,6 +296,9 @@ export const StudentsPage = () => {
       <Typography variant="h4" component="h1">
         Estudiantes
       </Typography>
+      <Typography color="text.secondary">
+        Consulta estudiantes por grado, grupo o búsqueda, y abre cada expediente para revisar información académica y convivencial.
+      </Typography>
 
       <Paper sx={{ p: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>

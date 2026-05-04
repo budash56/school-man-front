@@ -45,6 +45,9 @@ const allRoleOptions: Array<{ value: Role; label: string }> = [
   { value: 'teacher', label: 'Profesor' },
 ]
 
+const roleLabel = (role: Role | string) =>
+  allRoleOptions.find((option) => option.value === role)?.label ?? role
+
 type RoleValue = (typeof roles)[number]['value']
 
 const emptyUser: CreateUserPayload = {
@@ -439,7 +442,12 @@ export const UsersPage = () => {
           <Button variant="text" onClick={() => setSelectedUserId(null)}>
             ← Volver
           </Button>
-          <Typography variant="h5">Perfil de usuario</Typography>
+          <Box>
+            <Typography variant="h5">Perfil de usuario</Typography>
+            <Typography variant="body2" color="text.secondary">
+              Consulta datos de acceso, rol, asignaturas y cursos asociados.
+            </Typography>
+          </Box>
           <Box sx={{ flexGrow: 1 }} />
           {user?.role === 'admin' || user?.role === 'coordinator' ? (
             <Button color="error" variant="outlined" onClick={() => setIsDeleteOpen(true)}>
@@ -469,7 +477,7 @@ export const UsersPage = () => {
                 Documento: {selectedUser.nationalId} · Usuario: {selectedUser.username}
               </Typography>
               <Typography variant="body1">
-                Rol: {selectedUser.role} · Contacto: {selectedUser.email ?? 'Sin correo'} ·{' '}
+                Rol: {roleLabel(selectedUser.role)} · Contacto: {selectedUser.email ?? 'Sin correo'} ·{' '}
                 {selectedUser.phone ?? 'Sin teléfono'}
               </Typography>
 
@@ -687,7 +695,12 @@ export const UsersPage = () => {
   return (
     <Box display="flex" flexDirection="column" gap={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-        <Typography variant="h5">Usuarios</Typography>
+        <Box>
+          <Typography variant="h5">Usuarios</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Administra cuentas, roles, docentes importados y asignaciones académicas asociadas a cada usuario.
+          </Typography>
+        </Box>
         <Box sx={{ flexGrow: 1 }} />
         <Button variant="outlined" onClick={handleOpenBulk}>
           Importar docentes
@@ -845,6 +858,9 @@ export const UsersPage = () => {
       <Dialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} fullWidth maxWidth="sm">
         <DialogTitle>Nuevo usuario</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Registra una cuenta con rol y datos de contacto. Para docentes, selecciona áreas y asignaturas habilitadas.
+          </Typography>
           <FormControl fullWidth>
             <InputLabel id="new-role-label">Rol</InputLabel>
             <Select
@@ -888,7 +904,7 @@ export const UsersPage = () => {
             type="text"
             value={tempPassword}
             InputProps={{ readOnly: true }}
-            helperText="Contraseña temporal = 1er apellido + 4 ultimos digitos del ID (ej: Medina9335)"
+            helperText="Contraseña temporal = primer apellido + 4 últimos dígitos del documento (ej: Medina9335)"
           />
 
           <TextField

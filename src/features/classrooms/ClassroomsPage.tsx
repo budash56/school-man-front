@@ -81,9 +81,9 @@ const sanitizeBuildingName = (value: string) => value.replace(/[^a-zA-Z0-9]/g, '
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const buildClassroomName = (buildingName: string, classrooms: Classroom[]) => {
-  const rawPrefix = buildingName.trim() || 'Building'
+  const rawPrefix = buildingName.trim() || 'Edificio'
   const sanitized = sanitizeBuildingName(rawPrefix)
-  const basePrefix = sanitized.length > 0 ? sanitized : 'Building'
+  const basePrefix = sanitized.length > 0 ? sanitized : 'Edificio'
   const maxPrefixLength = 80 - '_Aula'.length - 2
   const prefix = basePrefix.slice(0, Math.max(1, maxPrefixLength))
   const regex = new RegExp(`^${escapeRegex(prefix)}_Aula(\\d+)$`)
@@ -1491,7 +1491,7 @@ export const ClassroomsPage = () => {
                   }
                 />
               }
-              label="Lab"
+              label="Laboratorio"
             />
             <FormControlLabel
               control={
@@ -1502,7 +1502,7 @@ export const ClassroomsPage = () => {
                   }
                 />
               }
-              label="Auditorim"
+              label="Auditorio"
             />
             <FormControlLabel
               control={
@@ -1516,7 +1516,7 @@ export const ClassroomsPage = () => {
                   }
                 />
               }
-              label="Computer Room"
+              label="Sala de sistemas"
             />
           </Stack>
           {buildingError ? <Alert severity="error">{buildingError}</Alert> : null}

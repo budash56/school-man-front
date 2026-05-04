@@ -66,8 +66,8 @@ const guardianRelationshipOptions = [
   'Hermano',
   'Abuela',
   'Abuelo',
-  'Tia',
-  'Tio',
+  'Tía',
+  'Tío',
   'Otro',
 ]
 const genderOptions: Array<CreateStudentPayload['gender']> = [
@@ -449,6 +449,9 @@ const EnrollmentWizardPage = () => {
     <Box display="flex" flexDirection="column" gap={3}>
       <Typography variant="h4" component="h1">
         Iniciar matrícula
+      </Typography>
+      <Typography variant="body1" color="text.secondary">
+        Busca el documento del estudiante, confirma sus datos y registra la matrícula en el año y grupo seleccionado.
       </Typography>
 
       <Paper sx={{ p: 3 }}>

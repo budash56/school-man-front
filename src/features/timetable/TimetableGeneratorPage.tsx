@@ -292,7 +292,7 @@ const TimetableGeneratorPage = () => {
           ) : null}
           {curriculumImportResult ? (
             <Stack spacing={2}>
-              <Alert severity="info">{curriculumImportResult.message}</Alert>
+              <Alert severity="info">Horario de cursos leído correctamente. Revisa el resumen antes de confirmar.</Alert>
               {curriculumImportResult.warnings.length > 0 ? (
                 <Alert severity="warning" sx={{ whiteSpace: 'pre-line' }}>
                   {curriculumImportResult.warnings.join('\n')}
@@ -376,7 +376,7 @@ const TimetableGeneratorPage = () => {
                 </Typography>
               </Stack>
               {curriculumImportApplyResult ? (
-                <Alert severity="success">{curriculumImportApplyResult.message}</Alert>
+                <Alert severity="success">Horario de cursos importado correctamente.</Alert>
               ) : null}
             </Stack>
           ) : null}
@@ -423,7 +423,7 @@ const TimetableGeneratorPage = () => {
           ) : null}
           {timetableImportResult ? (
             <Stack spacing={2}>
-              <Alert severity="info">{timetableImportResult.message}</Alert>
+              <Alert severity="info">Horario de profesores leído correctamente. Revisa el resumen antes de confirmar.</Alert>
               {timetableImportResult.warnings.length > 0 ? (
                 <Alert severity="warning">{timetableImportResult.warnings.join(' ')}</Alert>
               ) : null}
@@ -480,7 +480,7 @@ const TimetableGeneratorPage = () => {
               </Stack>
               {timetableImportApplyResult ? (
                 <Alert severity="success">
-                  {timetableImportApplyResult.message} Contraseña temporal para profesores nuevos: {timetableImportApplyResult.defaultTeacherPassword}
+                  Horario de profesores importado correctamente. Contraseña temporal para profesores nuevos: {timetableImportApplyResult.defaultTeacherPassword}
                 </Alert>
               ) : null}
             </Stack>

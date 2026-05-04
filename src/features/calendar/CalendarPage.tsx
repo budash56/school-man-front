@@ -887,7 +887,7 @@ const CalendarPage = () => {
     <Stack spacing={2}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
         <Stack spacing={0.5}>
-          <Typography variant="h4">Calendar</Typography>
+          <Typography variant="h4">Calendario</Typography>
           <Typography color="text.secondary">
             {isAdminLike
               ? 'Configura fechas oficiales y publica eventos para la comunidad educativa.'

@@ -687,7 +687,7 @@ export const CurriculumPage = () => {
             </Collapse>
 
             <ListItemButton onClick={() => setIsSeniorOpen((prev) => !prev)}>
-              <ListItemText primary="Senior" secondary="Grados 10° y 11°" />
+              <ListItemText primary="Media" secondary="Grados 10° y 11°" />
               {isSeniorOpen ? <ExpandLess /> : <ExpandMore />}
             </ListItemButton>
             <Collapse in={isSeniorOpen} timeout="auto" unmountOnExit>

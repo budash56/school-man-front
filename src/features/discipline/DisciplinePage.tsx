@@ -34,10 +34,10 @@ const disciplinaryCategoryOptions: Array<{
   value: DisciplinaryCategory
   label: string
 }> = [
-  { value: 'green', label: 'Green' },
-  { value: 'yellow', label: 'Yellow' },
-  { value: 'red', label: 'Red' },
-  { value: 'last_notice', label: 'Last notice' },
+  { value: 'green', label: 'Verde' },
+  { value: 'yellow', label: 'Amarillo' },
+  { value: 'red', label: 'Rojo' },
+  { value: 'last_notice', label: 'Último aviso' },
 ]
 
 const getGroupLabel = (
@@ -235,7 +235,7 @@ export const DisciplinePage = () => {
 
   return (
     <Box display="flex" flexDirection="column" gap={2}>
-      <Typography variant="h5">Discipline</Typography>
+      <Typography variant="h5">Convivencia</Typography>
       <Typography variant="body2" color="text.secondary">
         Explora los registros disciplinarios por grado y grupo. Selecciona un estudiante para revisar su historial.
       </Typography>
@@ -384,10 +384,10 @@ export const DisciplinePage = () => {
                 </Paper>
 
                 <Stack direction="row" flexWrap="wrap" gap={1}>
-                  <Chip label={`Green: ${categoryCounts.green || 0}`} color="success" variant="outlined" />
-                  <Chip label={`Yellow: ${categoryCounts.yellow || 0}`} color="warning" variant="outlined" />
-                  <Chip label={`Red: ${categoryCounts.red || 0}`} color="error" variant="outlined" />
-                  <Chip label={`Last notice: ${categoryCounts.last_notice || 0}`} variant="outlined" />
+                  <Chip label={`Verde: ${categoryCounts.green || 0}`} color="success" variant="outlined" />
+                  <Chip label={`Amarillo: ${categoryCounts.yellow || 0}`} color="warning" variant="outlined" />
+                  <Chip label={`Rojo: ${categoryCounts.red || 0}`} color="error" variant="outlined" />
+                  <Chip label={`Último aviso: ${categoryCounts.last_notice || 0}`} variant="outlined" />
                 </Stack>
 
                 <Stack spacing={1}>
@@ -424,7 +424,7 @@ export const DisciplinePage = () => {
                 <Stack spacing={1}>
                   <Typography variant="subtitle2">Reconocimientos</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Awards: (TODO – wire awards endpoint when available)
+                    Reconocimientos: pendiente por conectar cuando el módulo esté disponible.
                   </Typography>
                 </Stack>
 

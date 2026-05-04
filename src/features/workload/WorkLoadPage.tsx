@@ -369,7 +369,7 @@ export const WorkLoadPage = () => {
     setDraftAssignments(nextAssignments)
     setSaveError(
       skippedSubjects.size > 0
-        ? `Testing only: no hay profesores elegibles para ${Array.from(skippedSubjects).join(', ')}.`
+        ? `Solo para pruebas: no hay profesores elegibles para ${Array.from(skippedSubjects).join(', ')}.`
         : null,
     )
     setSaveSuccess(null)
@@ -509,7 +509,7 @@ export const WorkLoadPage = () => {
     <Stack spacing={3}>
       <Paper sx={{ p: 3 }}>
         <Stack spacing={2}>
-          <Typography variant="h4">WorkLoad</Typography>
+          <Typography variant="h4">Carga docente</Typography>
           <Typography color="text.secondary">
             Asigna un profesor por asignatura y grupo. Solo aparecen grados que ya tienen grupos creados y un currículo utilizable.
           </Typography>
@@ -560,7 +560,7 @@ export const WorkLoadPage = () => {
               onClick={() => saveMutation.mutate(draftAssignments)}
               disabled={pendingChanges === 0 || saveMutation.isPending || duplicateLabels.length > 0}
             >
-              {saveMutation.isPending ? 'Guardando...' : 'Guardar WorkLoad'}
+              {saveMutation.isPending ? 'Guardando...' : 'Guardar carga docente'}
             </Button>
             <Button
               variant="outlined"

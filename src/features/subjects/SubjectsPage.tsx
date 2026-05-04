@@ -254,7 +254,7 @@ export const SubjectsPage = () => {
   const queryClient = useQueryClient()
   const canManage = user?.role === 'admin' || user?.role === 'coordinator'
   const isTeacherView = user?.role === 'teacher'
-  const pageTitle = isTeacherView ? 'Area' : 'Áreas'
+  const pageTitle = isTeacherView ? 'Área' : 'Áreas'
 
   const [search, setSearch] = useState('')
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null)
@@ -549,7 +549,12 @@ export const SubjectsPage = () => {
   return (
     <Box display="flex" flexDirection="column" gap={3}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2}>
-        <Typography variant="h4">{pageTitle}</Typography>
+        <Box>
+          <Typography variant="h4">{pageTitle}</Typography>
+          <Typography color="text.secondary">
+            Organiza áreas académicas, asignaturas y profesores habilitados para cada materia.
+          </Typography>
+        </Box>
         <Box sx={{ flexGrow: 1 }} />
         {!selectedArea ? (
           <Button

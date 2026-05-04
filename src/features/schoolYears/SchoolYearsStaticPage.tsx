@@ -127,7 +127,7 @@ const SchoolYearsStaticPage = () => {
     <Box display="flex" flexDirection="column" gap={2}>
       <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2}>
         <Box>
-          <Typography variant="h5">School years</Typography>
+          <Typography variant="h5">Años escolares</Typography>
           <Typography variant="body2" color="text.secondary">
             Selecciona un año escolar para ver sus grupos y los estudiantes realmente matriculados.
           </Typography>

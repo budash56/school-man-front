@@ -302,7 +302,7 @@ export const AttendancePage = () => {
       </Stack>
 
       <Alert severity="info">
-        El calendario marca fines de semana y festivos oficiales de Colombia. La importación de horarios de profesores queda como TODO para la siguiente fase.
+        El calendario marca fines de semana y festivos oficiales de Colombia. La importación de horarios de profesores queda pendiente para una siguiente fase.
       </Alert>
 
       <AcademicCalendarBoard
